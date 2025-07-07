@@ -2,8 +2,9 @@ namespace Concur;
 
 using System;
 using System.Diagnostics;
-using System.Threading.Channels;
 using System.Threading.Tasks;
+using Abstractions;
+using Implementations;
 
 /// <summary>
 /// Provides static methods for running concurrent operations, inspired by Golang's goroutines.
@@ -83,7 +84,7 @@ public static class ConcurRoutine
     /// <param name="channel">The writer for the channel that the func will write to.</param>
     /// <typeparam name="T">The type of data in the channel.</typeparam>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    public static Task Go<T>(Func<ChannelWriter<T>, Task> func, ChannelWriter<T> channel)
+    public static Task Go<T>(Func<IChannel<T>, Task> func, IChannel<T> channel)
     {
         return Task.Run(async () =>
         {
@@ -93,7 +94,7 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                channel.TryComplete(e);
+                await channel.FailAsync(e);
             }
         });
     }
@@ -105,28 +106,23 @@ public static class ConcurRoutine
     /// <param name="producer">The function that produces values and writes them to the channel.</param>
     /// <param name="capacity">Optional capacity for a bounded channel. If null, an unbounded channel is created.</param>
     /// <typeparam name="T">The type of data in the channel.</typeparam>
-    /// <returns>A ChannelReader that a consumer can read from.</returns>
-    public static ChannelReader<T> Go<T>(Func<ChannelWriter<T>, Task> producer, int? capacity = null)
+    /// <returns>A IConcurChannel that a consumer can read from.</returns>
+    public static IChannel<T> Go<T>(Func<IChannel<T>, Task> producer, int? capacity = null)
     {
-        var channel = capacity.HasValue
-            ? Channel.CreateBounded<T>(new BoundedChannelOptions(capacity.Value)
-            {
-                FullMode = BoundedChannelFullMode.Wait, // Mimics Go channel behavior
-            })
-            : Channel.CreateUnbounded<T>();
+        var channel = new DefaultChannel<T>(capacity);
 
         _ = Task.Run(async () =>
         {
             try
             {
-                await producer(channel.Writer);
+                await producer(channel);
             }
             catch (Exception e)
             {
-                channel.Writer.TryComplete(e);
+                await channel.FailAsync(e);
             }
         });
 
-        return channel.Reader;
+        return channel;
     }
 }

@@ -2,10 +2,10 @@ namespace Concur.Tests;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
+using Abstractions;
+using Implementations;
 using Xunit;
 using static ConcurRoutine;
 
@@ -58,31 +58,28 @@ public class ConcurRoutineTests
     public async Task Go_WithChannelFunc_WritesToChannel()
     {
         // Arrange
-        var channel = Channel.CreateUnbounded<int>();
+        var channel = new DefaultChannel<int>();
         var values = new[] { 1, 2, 3, 4, 5 };
-        Func<ChannelWriter<int>, Task> producer = async writer =>
+        Func<IChannel<int>, Task> producer = async chan =>
         {
             foreach (var value in values)
             {
-                await writer.WriteAsync(value);
+                await chan.WriteAsync(value);
                 await Task.Delay(10);
             }
 
-            writer.TryComplete();
+            await chan.CompleteAsync();
         };
 
         // Act
-        _ = Go(producer, channel.Writer);
+        _ = Go(producer, channel);
 
         // Assert
         var collected = new List<int>();
 
-        while (await channel.Reader.WaitToReadAsync())
+        await foreach (var item in channel)
         {
-            while (channel.Reader.TryRead(out var item))
-            {
-                collected.Add(item);
-            }
+            collected.Add(item);
 
             if (collected.Count >= values.Length)
             {
@@ -97,35 +94,32 @@ public class ConcurRoutineTests
     public async Task Go_WithMultipleRoutines_WithChannelFunc_WritesToChannel()
     {
         // Arrange
-        var channel = Channel.CreateUnbounded<int>();
+        var channel = new DefaultChannel<int>();
         var values = new[] { 1, 2, 3, 4, 5 };
-        Func<ChannelWriter<int>, Task> producer = async writer =>
+        Func<IChannel<int>, Task> producer = async chan =>
         {
             foreach (var value in values)
             {
-                await writer.WriteAsync(value);
+                await chan.WriteAsync(value);
             }
         };
 
         // Act
-        _ = Go(producer, channel.Writer);
-        _ = Go(producer, channel.Writer);
-        _ = Go(producer, channel.Writer);
+        _ = Go(producer, channel);
+        _ = Go(producer, channel);
+        _ = Go(producer, channel);
 
         // Assert
         int[] expectedResult = [..values, ..values, ..values];
         var collected = new List<int>();
 
-        while (await channel.Reader.WaitToReadAsync())
+        await foreach (var item in channel)
         {
-            while (channel.Reader.TryRead(out var item))
-            {
-                collected.Add(item);
-            }
-            
+            collected.Add(item);
+
             if (collected.Count >= expectedResult.Length)
             {
-                channel.Writer.TryComplete();
+                await channel.CompleteAsync();
                 break;
             }
         }
@@ -140,19 +134,19 @@ public class ConcurRoutineTests
         var values = new[] { 1, 2, 3, 4, 5 };
 
         // Act
-        var channelReader = Go<int>(async writer =>
+        var channelReader = Go<int>(async chan =>
         {
             foreach (var value in values)
             {
-                await writer.WriteAsync(value);
+                await chan.WriteAsync(value);
                 await Task.Delay(10);
             }
-            
-            writer.TryComplete();
+
+            await chan.CompleteAsync();
         }, capacity: 10);
 
         // Assert
-        var collected = await channelReader.ReadAllAsync().ToListAsync();
+        var collected = await channelReader.ToListAsync();
         Assert.Equal(values, collected);
     }
 
@@ -196,7 +190,7 @@ public class ConcurRoutineTests
     public async Task Go_WithChannelAndException_CompletesChannelWithError()
     {
         // Arrange
-        var channel = Channel.CreateUnbounded<int>();
+        var channel = new DefaultChannel<int>();
         var expectedException = new InvalidOperationException("Test exception");
 
         // Act
@@ -204,12 +198,12 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             throw expectedException;
-        }, channel.Writer);
+        }, channel);
 
         // Assert
         try
         {
-            await foreach (var _ in channel.Reader.ReadAllAsync())
+            await foreach (var _ in channel)
             {
                 // Should not get here
                 Assert.Fail("Channel should be completed with error");
