@@ -4,7 +4,7 @@
     <TargetFramework>$(FrameworkVersion)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Description>A lightweight C# library providing Go-inspired concurrency patterns for .NET applications.</Description>
     <PackageProjectUrl>https://github.com/Desz01ate/Concur</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Desz01ate/Concur</RepositoryUrl>
