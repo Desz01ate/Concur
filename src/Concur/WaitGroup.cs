@@ -72,16 +72,7 @@ public sealed class WaitGroup
     /// </summary>
     public Task WaitAsync()
     {
-        this.semaphore.Wait();
-
-        try
-        {
-            return this.tcs.Task;
-        }
-        finally
-        {
-            this.semaphore.Release();
-        }
+        return this.tcs.Task;
     }
 
     /// <summary>

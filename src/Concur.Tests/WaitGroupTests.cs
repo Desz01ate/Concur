@@ -1,5 +1,6 @@
 namespace Concur.Tests;
 
+using System.Reflection;
 using Abstractions;
 using Implementations;
 using static ConcurRoutine;
@@ -105,5 +106,49 @@ public class WaitGroupTests
         }
 
         Assert.Equivalent(expectedResult, collected);
+    }
+
+    [Fact]
+    public void Add_WithNegativeDelta_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var wg = new WaitGroup();
+
+        // Act & Assert
+        var exception = Record.Exception(() => wg.Add(-1));
+        Assert.NotNull(exception);
+        Assert.IsType<InvalidOperationException>(exception);
+        Assert.Equal("WaitGroup counter cannot be negative.", exception.Message);
+    }
+
+    [Fact]
+    public void WaitAsync_CompletesImmediately_WhenCountIsZero()
+    {
+        // Arrange
+        var wg = new WaitGroup(); // Initially count is 0
+
+        // Act
+        var waitTask = wg.WaitAsync();
+
+        // Assert
+        Assert.True(waitTask.IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task WaitAsync_CompletesAfterDone_WhenCountReachesZero()
+    {
+        // Arrange
+        var wg = new WaitGroup();
+        wg.Add(1); // Increment count to 1
+
+        // Act
+        var waitTask = wg.WaitAsync();
+        Assert.False(waitTask.IsCompleted); // Should not be completed yet
+
+        wg.Done(); // Decrement count to 0
+
+        // Assert
+        await waitTask; // Wait for the task to complete
+        Assert.True(waitTask.IsCompletedSuccessfully);
     }
 }
