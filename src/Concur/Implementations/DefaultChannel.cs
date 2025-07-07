@@ -4,7 +4,7 @@ using System.Threading.Channels;
 using Abstractions;
 
 /// <summary>
-/// Provides a default implementation of the <see cref="IConcurChannel{T}"/> interface.
+/// Provides a default implementation of the <see cref="IChannel{T}"/> interface.
 /// This class uses the <see cref="System.Threading.Channels.Channel{T}"/> for its underlying implementation,
 /// supporting both bounded and unbounded channel behaviors.
 /// </summary>
