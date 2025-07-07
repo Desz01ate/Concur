@@ -1,0 +1,27 @@
+name: .NET Build and Test
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore src/Concur.sln
+
+    - name: Build
+      run: dotnet build src/Concur.sln --no-restore
+
+    - name: Test
+      run: dotnet test src/Concur.sln --no-build --verbosity normal
