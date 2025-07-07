@@ -9,7 +9,7 @@ namespace Concur;
 /// </summary>
 public sealed class WaitGroup
 {
-    private readonly SemaphoreSlim semaphore = new(1);
+    private readonly SemaphoreSlim semaphore = new(1, 1);
     private int count;
     private TaskCompletionSource<bool> tcs;
 
