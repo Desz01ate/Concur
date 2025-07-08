@@ -4,11 +4,11 @@
     <TargetFramework>$(FrameworkVersion)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <Description>A lightweight C# library providing Go-inspired concurrency patterns for .NET applications.</Description>
     <PackageProjectUrl>https://github.com/Desz01ate/Concur</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Desz01ate/Concur</RepositoryUrl>
-    <PackageReleaseNotes>Added 'WaitGroup' implementation.</PackageReleaseNotes>
+    <PackageReleaseNotes>Added generic support.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
