@@ -10,50 +10,14 @@ using static Concur.ConcurRoutine;
 [ThreadingDiagnoser]
 [DisassemblyDiagnoser(printSource: true, maxDepth: 2)]
 [IterationCount(100)]
-[WarmupCount(10)]
+[WarmupCount(100)]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [MinColumn, MaxColumn, MeanColumn, MedianColumn]
 public class GoBenchmark
 {
-    private const int iterations = 100_000;
-    private const int concurrency = 10;
-    private const int expectedSum = iterations * concurrency;
-
-    [Benchmark]
-    public async Task Goroutine()
-    {
-        var channel = new DefaultChannel<int>();
-
-        for (var i = 0; i < concurrency; i++)
-        {
-            _ = Go(async ch =>
-            {
-                for (var j = 0; j < iterations; j++)
-                {
-                    await ch.WriteAsync(1);
-                }
-            }, channel);
-        }
-
-        var sum = 0;
-
-        await foreach (var item in channel)
-        {
-            sum += item;
-
-            if (sum >= expectedSum)
-            {
-                break;
-            }
-        }
-
-        await channel.CompleteAsync();
-
-        if (sum != expectedSum)
-        {
-            throw new Exception("Sum is not correct");
-        }
-    }
+    private const int Iterations = 1_000_000;
+    private const int Concurrency = 16;
+    private const int ExpectedSum = Iterations * Concurrency;
 
     [Benchmark]
     public async Task Goroutine_WithWaitGroup()
@@ -61,11 +25,11 @@ public class GoBenchmark
         var wg = new WaitGroup();
         var channel = new DefaultChannel<int>();
 
-        for (var i = 0; i < concurrency; i++)
+        for (var i = 0; i < Concurrency; i++)
         {
             _ = Go(wg, async ch =>
             {
-                for (var j = 0; j < iterations; j++)
+                for (var j = 0; j < Iterations; j++)
                 {
                     await ch.WriteAsync(1);
                 }
@@ -80,13 +44,13 @@ public class GoBenchmark
 
         var sum = await channel.SumAsync();
 
-        if (sum != expectedSum)
+        if (sum != ExpectedSum)
         {
             throw new Exception("Sum is not correct");
         }
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public async Task Channel_WithTpl()
     {
         var channel = Channel.CreateUnbounded<int>();
@@ -95,11 +59,11 @@ public class GoBenchmark
 
         var producerTasks = new List<Task>();
 
-        for (var i = 0; i < concurrency; i++)
+        for (var i = 0; i < Concurrency; i++)
         {
             producerTasks.Add(Task.Run(async () =>
             {
-                for (var j = 0; j < iterations; j++)
+                for (var j = 0; j < Iterations; j++)
                 {
                     await writer.WriteAsync(1);
                 }
@@ -112,16 +76,11 @@ public class GoBenchmark
             writer.Complete();
         });
 
-        var sum = 0;
-
-        await foreach (var value in reader.ReadAllAsync())
-        {
-            sum += value;
-        }
+        var sum = await reader.ReadAllAsync().SumAsync();
 
         await completionTask;
 
-        if (sum != expectedSum)
+        if (sum != ExpectedSum)
         {
             throw new Exception("Sum is not correct");
         }

@@ -209,6 +209,18 @@ Go(async () => {
 });
 ```
 ---
+
+## 🚀 Performance Consideration
+
+`Concur` aims to offer a more expressive, Go-style concurrency API—not to outperform the `Task Parallel Library (TPL)`.
+
+Performance is nearly identical to using `Task.Run` and `Channel<T>` directly. The small overhead from `WaitGroup` is negligible in most cases.
+
+Below is a benchmark comparing `Concur (Go, DefaultChannel, WaitGroup)` with idiomatic C# `(Task.Run, System.Threading.Channels.Channel, Task.WhenAll)`:
+
+![Benchmark Results](./images/benchmark.png)
+
+---
 ## 🤝 Contributing
 Contributions are welcome! If you'd like to help improve Concur, please feel free to fork the repository, make changes, and submit a pull request.
 
