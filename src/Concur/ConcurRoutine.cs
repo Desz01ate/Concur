@@ -173,7 +173,207 @@ public static class ConcurRoutine
 
     #endregion
 
-    #region Generics
+    #region Generics - Sync
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p"></param>
+    public static void Go<T>(Action<T> func, T p)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    public static void Go<T1, T2>(Action<T1, T2> func, T1 p1, T2 p2)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    public static void Go<T1, T2, T3>(Action<T1, T2, T3> func, T1 p1, T2 p2, T3 p3)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    public static void Go<T1, T2, T3, T4>(Action<T1, T2, T3, T4> func, T1 p1, T2 p2, T3 p3, T4 p4)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    public static void Go<T1, T2, T3, T4, T5>(Action<T1, T2, T3, T4, T5> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    public static void Go<T1, T2, T3, T4, T5, T6>(Action<T1, T2, T3, T4, T5, T6> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    public static void Go<T1, T2, T3, T4, T5, T6, T7>(Action<T1, T2, T3, T4, T5, T6, T7> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    /// <param name="p8"></param>
+    public static void Go<T1, T2, T3, T4, T5, T6, T7, T8>(Action<T1, T2, T3, T4, T5, T6, T7, T8> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    #endregion
+
+    #region Generics - Async
 
     /// <summary>
     /// Runs an asynchronous function on a background thread.
@@ -381,7 +581,263 @@ public static class ConcurRoutine
 
     #endregion
 
-    #region Generics - WaitGroup
+    #region Generics - Sync, WaitGroup
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p"></param>
+    public static void Go<T>(WaitGroup wg, Action<T> func, T p)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    public static void Go<T1, T2>(WaitGroup wg, Action<T1, T2> func, T1 p1, T2 p2)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    public static void Go<T1, T2, T3>(WaitGroup wg, Action<T1, T2, T3> func, T1 p1, T2 p2, T3 p3)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    public static void Go<T1, T2, T3, T4>(WaitGroup wg, Action<T1, T2, T3, T4> func, T1 p1, T2 p2, T3 p3, T4 p4)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    public static void Go<T1, T2, T3, T4, T5>(WaitGroup wg, Action<T1, T2, T3, T4, T5> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    public static void Go<T1, T2, T3, T4, T5, T6>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    public static void Go<T1, T2, T3, T4, T5, T6, T7>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6, T7> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    /// <param name="p8"></param>
+    public static void Go<T1, T2, T3, T4, T5, T6, T7, T8>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6, T7, T8> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8)
+    {
+        wg.Add(1);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    #endregion
+
+    #region Generics - Async, WaitGroup
 
     /// <summary>
     /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
