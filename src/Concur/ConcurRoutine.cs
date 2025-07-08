@@ -77,29 +77,6 @@ public static class ConcurRoutine
     }
 
     /// <summary>
-    /// Runs a producer function that writes to a given channel.
-    /// The producer is responsible for completing the channel when it's done.
-    /// </summary>
-    /// <param name="func">The producer function that receives the channel writer to write to.</param>
-    /// <param name="channel">The writer for the channel that the func will write to.</param>
-    /// <typeparam name="T">The type of data in the channel.</typeparam>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    public static Task Go<T>(Func<IChannel<T>, Task> func, IChannel<T> channel)
-    {
-        return Task.Run(async () =>
-        {
-            try
-            {
-                await func(channel);
-            }
-            catch (Exception e)
-            {
-                await channel.FailAsync(e);
-            }
-        });
-    }
-
-    /// <summary>
     /// Creates a channel, runs a producer goroutine that writes to it, and returns the reader.
     /// The producer is responsible for completing the channel when it's done.
     /// </summary>
@@ -194,20 +171,232 @@ public static class ConcurRoutine
         });
     }
 
+    #endregion
+
+    #region Generics
+
     /// <summary>
-    /// Runs a producer-style asynchronous function that writes to a channel and associates the entire operation with a <see cref="WaitGroup"/>.
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
     /// </summary>
-    /// <typeparam name="T">The type of data in the channel.</typeparam>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T>(Func<T, Task> func, T p)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T1, T2>(Func<T1, T2, Task> func, T1 p1, T2 p2)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T1, T2, T3>(Func<T1, T2, T3, Task> func, T1 p1, T2 p2, T3 p3)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T1, T2, T3, T4>(Func<T1, T2, T3, T4, Task> func, T1 p1, T2 p2, T3 p3, T4 p4)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T1, T2, T3, T4, T5>(Func<T1, T2, T3, T4, T5, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T1, T2, T3, T4, T5, T6>(Func<T1, T2, T3, T4, T5, T6, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T1, T2, T3, T4, T5, T6, T7>(Func<T1, T2, T3, T4, T5, T6, T7, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread.
+    /// Any exceptions are caught and passed to OnException.
+    /// </summary>
+    /// <param name="func">The async function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    /// <param name="p8"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public static Task Go<T1, T2, T3, T4, T5, T6, T7, T8>(Func<T1, T2, T3, T4, T5, T6, T7, T8, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8)
+    {
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        });
+    }
+
+    #endregion
+
+    #region Generics - WaitGroup
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
     /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
-    /// <param name="func">The producer function that receives an <see cref="IChannel{T}"/> to write to.</param>
-    /// <param name="channel">The channel that the producer function will use.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p"></param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <remarks>
-    /// This is the most advanced WaitGroup overload, designed for scenarios where you have multiple producers writing
-    /// to a shared channel and you need to wait for all producers to finish their work. The <c>finally</c> block ensures
-    /// <c>wg.Done()</c> is called once the producer has finished its execution loop.
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
     /// </remarks>
-    public static Task Go<T>(WaitGroup wg, Func<IChannel<T>, Task> func, IChannel<T> channel)
+    public static Task Go<T>(WaitGroup wg, Func<T, Task> func, T p)
     {
         wg.Add(1);
 
@@ -215,11 +404,277 @@ public static class ConcurRoutine
         {
             try
             {
-                await func(channel);
+                await func(p);
             }
             catch (Exception e)
             {
-                await channel.FailAsync(e);
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
+    /// </remarks>
+    public static Task Go<T1, T2>(WaitGroup wg, Func<T1, T2, Task> func, T1 p1, T2 p2)
+    {
+        wg.Add(1);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
+    /// </remarks>
+    public static Task Go<T1, T2, T3>(WaitGroup wg, Func<T1, T2, T3, Task> func, T1 p1, T2 p2, T3 p3)
+    {
+        wg.Add(1);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
+    /// </remarks>
+    public static Task Go<T1, T2, T3, T4>(WaitGroup wg, Func<T1, T2, T3, T4, Task> func, T1 p1, T2 p2, T3 p3, T4 p4)
+    {
+        wg.Add(1);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
+    /// </remarks>
+    public static Task Go<T1, T2, T3, T4, T5>(WaitGroup wg, Func<T1, T2, T3, T4, T5, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5)
+    {
+        wg.Add(1);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
+    /// </remarks>
+    public static Task Go<T1, T2, T3, T4, T5, T6>(WaitGroup wg, Func<T1, T2, T3, T4, T5, T6, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6)
+    {
+        wg.Add(1);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
+    /// </remarks>
+    public static Task Go<T1, T2, T3, T4, T5, T6, T7>(WaitGroup wg, Func<T1, T2, T3, T4, T5, T6, T7, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7)
+    {
+        wg.Add(1);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+            finally
+            {
+                wg.Done();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs an asynchronous function on a background thread and associates it with a <see cref="WaitGroup"/>.
+    /// This method automatically handles the WaitGroup counter.
+    /// </summary>
+    /// <param name="wg">The <see cref="WaitGroup"/> instance to associate this task with.</param>
+    /// <param name="func">The asynchronous function to execute.</param>
+    /// <param name="p1"></param>
+    /// <param name="p2"></param>
+    /// <param name="p3"></param>
+    /// <param name="p4"></param>
+    /// <param name="p5"></param>
+    /// <param name="p6"></param>
+    /// <param name="p7"></param>
+    /// <param name="p8"></param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>
+    /// Use this overload for asynchronous operations that return a <see cref="Task"/>. It allows you to group several async
+    /// operations and wait for their collective completion. The <c>finally</c> block guarantees that <c>wg.Done()</c>
+    /// is called after the <c>await func()</c> completes or throws an exception.
+    /// </remarks>
+    public static Task Go<T1, T2, T3, T4, T5, T6, T7, T8>(WaitGroup wg, Func<T1, T2, T3, T4, T5, T6, T7, T8, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8)
+    {
+        wg.Add(1);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
+            {
+                OnException(e);
             }
             finally
             {

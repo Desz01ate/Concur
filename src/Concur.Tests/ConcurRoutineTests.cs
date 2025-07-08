@@ -194,10 +194,17 @@ public class ConcurRoutineTests
         var expectedException = new InvalidOperationException("Test exception");
 
         // Act
-        _ = Go(async _ =>
+        _ = Go(async ch =>
         {
-            await Task.Delay(10);
-            throw expectedException;
+            try
+            {
+                await Task.Delay(10);
+                throw expectedException;
+            }
+            catch (Exception e)
+            {
+                await ch.FailAsync(e);
+            }
         }, channel);
 
         // Assert
