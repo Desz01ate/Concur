@@ -1,8 +1,10 @@
 name: .NET Build and Test
 
 on:
+  push:
+    branches: [ '**' ]
   pull_request:
-    branches: [ main ]
+    branches: [ '**' ]
 
 jobs:
   build:
