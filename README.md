@@ -183,30 +183,45 @@ Console.WriteLine($"Results: {results[0]}, {results[1]}, {results[2]}");
 ---
 
 ## ⚠️ Error Handling
-By default, exceptions thrown inside a goroutine are suppressed and are only logged if the application is in `DEBUG` mode. For production applications, you must configure a global exception handler.
-
-Set the OnException static property early in your application's lifecycle, such as in `Program.cs` or `Startup.cs`.
+Concur provides a flexible, context-aware exception handling system that supports both global and per-operation exception handling.
 
 ```csharp
-using Microsoft.Extensions.Logging; // Example using a logging framework
+using Microsoft.Extensions.Logging;
+using Concur.Abstractions;
 using static ConcurRoutine;
 
-// --- In your application startup code ---
+// Create a custom exception handler,
+// by default Concur will use a `DefaultLoggingExceptionHandler`.
+public class LoggingExceptionHandler : IExceptionHandler
+{
+    private readonly ILogger logger;
+    
+    public LoggingExceptionHandler(ILogger logger)
+    {
+        this.logger = logger;
+    }
+    
+    public ValueTask HandleAsync(IExceptionContext context)
+    {
+        logger.LogError(context.Exception, 
+            "Exception in routine {RoutineId} during {OperationName}: {Message}",
+            context.RoutineId, 
+            context.OperationName ?? "Unknown",
+            context.Exception.Message);
+        
+        return ValueTask.CompletedTask;
+    }
+}
 
-// 1. Get your preferred logger instance
-var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+// Set the global default handler
 var logger = loggerFactory.CreateLogger("Concur");
-
-// 2. Assign a handler to the static OnException property
-ConcurRoutine.OnException = exception => {
-    logger.LogError(exception, "An unhandled exception occurred in a background task.");
+var options = new GoOptions
+{
+    ExceptionHandler = new LoggingExceptionHandler(logger),
 };
 
-// Now, any exception in a Go() routine will be routed to your logger.
-Go(async () => {
-    await Task.Delay(100);
-    throw new InvalidOperationException("This will be caught and logged.");
-});
+// All goroutines will now use the handler specified in options
+Go(() => throw new InvalidOperationException("This will be logged"), options);
 ```
 ---
 

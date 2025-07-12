@@ -104,7 +104,6 @@ public static class ConcurRoutine
     {
         var channel = new DefaultChannel<T>(capacity);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -140,7 +139,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -174,7 +172,6 @@ public static class ConcurRoutine
     public static void Go(WaitGroup wg, Func<Task> func, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -617,7 +614,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -647,7 +643,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2>(WaitGroup wg, Action<T1, T2> func, T1 p1, T2 p2, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -680,7 +675,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -712,7 +706,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4>(WaitGroup wg, Action<T1, T2, T3, T4> func, T1 p1, T2 p2, T3 p3, T4 p4, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -747,7 +740,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -781,7 +773,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -818,7 +809,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -854,7 +844,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6, T7, T8>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6, T7, T8> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -895,7 +884,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -931,7 +919,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2>(WaitGroup wg, Func<T1, T2, Task> func, T1 p1, T2 p2, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -969,7 +956,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3>(WaitGroup wg, Func<T1, T2, T3, Task> func, T1 p1, T2 p2, T3 p3, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -1009,7 +995,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -1048,7 +1033,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5>(WaitGroup wg, Func<T1, T2, T3, T4, T5, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -1090,7 +1074,6 @@ public static class ConcurRoutine
     {
         wg.Add(1);
 
-
         _ = Task.Run(async () =>
         {
             try
@@ -1131,7 +1114,6 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6, T7>(WaitGroup wg, Func<T1, T2, T3, T4, T5, T6, T7, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
@@ -1185,7 +1167,6 @@ public static class ConcurRoutine
         GoOptions? options = null)
     {
         wg.Add(1);
-
 
         _ = Task.Run(async () =>
         {
