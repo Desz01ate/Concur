@@ -30,7 +30,7 @@ public class ExceptionHandlingTests
         }, options);
 
         var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
-        
+
         // Assert - should complete without any exceptions being propagated
         Assert.True(signaled);
     }
@@ -64,7 +64,7 @@ public class ExceptionHandlingTests
         Assert.True(signaled);
         var capturedExceptions = testHandler.GetCapturedExceptions();
         Assert.Single(capturedExceptions);
-        
+
         var context = capturedExceptions[0];
         Assert.Equal("MetadataTest", context.OperationName);
         Assert.Equal(123, context.Metadata["UserId"]);
@@ -95,7 +95,7 @@ public class ExceptionHandlingTests
         Assert.True(signaled);
         var capturedExceptions = testHandler.GetCapturedExceptions();
         Assert.Single(capturedExceptions);
-        
+
         var context = capturedExceptions[0];
         Assert.True(context.Timestamp >= startTime && context.Timestamp <= endTime);
         Assert.NotEmpty(context.RoutineId);
@@ -129,7 +129,7 @@ public class ExceptionHandlingTests
         Assert.True(signaled);
         var capturedExceptions = testHandler.GetCapturedExceptions();
         Assert.Single(capturedExceptions);
-        
+
         var context = capturedExceptions[0];
         Assert.Equal(expectedException, context.Exception);
         Assert.Equal("ChannelTest", context.OperationName);
@@ -192,7 +192,43 @@ public class ExceptionHandlingTests
 
         var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
         Assert.True(signaled);
-        
+
         // Test should complete without the handler exception propagating
+    }
+
+    [Fact]
+    public async Task AggregateExceptionHandler_AggregatesExceptionsCorrectly()
+    {
+        // Arrange
+        var wg = new WaitGroup();
+        var aggregateHandler = new AggregateExceptionHandler();
+        var exceptionsToThrow = new List<Exception>
+        {
+            new InvalidOperationException("First error"),
+            new ArgumentNullException("Second error"),
+            new TaskCanceledException("Third error"),
+        };
+
+        var options = new GoOptions
+        {
+            ExceptionHandler = aggregateHandler,
+        };
+
+        // Act
+        foreach (var ex in exceptionsToThrow)
+        {
+            Go(wg, () => throw ex, options);
+        }
+
+        await wg.WaitAsync();
+
+        // Assert
+        var aggregateException = aggregateHandler.GetAggregateException();
+        Assert.Equal(exceptionsToThrow.Count, aggregateException.InnerExceptions.Count);
+
+        foreach (var ex in exceptionsToThrow)
+        {
+            Assert.Contains(ex, aggregateException.InnerExceptions);
+        }
     }
 }
