@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Abstractions;
+using Handlers;
 using Implementations;
 using Xunit;
 using static ConcurRoutine;
@@ -40,7 +41,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<bool>();
 
         // Act
-        _ = Go(async () =>
+        Go(async () =>
         {
             await Task.Delay(10);
             executed = true;
@@ -73,7 +74,7 @@ public class ConcurRoutineTests
         };
 
         // Act
-        _ = Go(producer, channel);
+        Go(producer, channel);
 
         // Assert
         var collected = new List<int>();
@@ -106,9 +107,9 @@ public class ConcurRoutineTests
         };
 
         // Act
-        _ = Go(producer, channel);
-        _ = Go(producer, channel);
-        _ = Go(producer, channel);
+        Go(producer, channel);
+        Go(producer, channel);
+        Go(producer, channel);
 
         // Assert
         int[] expectedResult = [..values, ..values, ..values];
@@ -153,38 +154,54 @@ public class ConcurRoutineTests
     }
 
     [Fact]
-    public async Task Go_WithException_CallsOnExceptionHandler()
+    public async Task Go_WithException_CallsExceptionHandler()
     {
         // Arrange
-        var exceptionThrown = false;
-        var originalHandler = OnException;
+        var testHandler = new TestExceptionHandler();
         var expectedException = new InvalidOperationException("Test exception");
-        var channel = new DefaultChannel<Exception>();
+        var resetEvent = new ManualResetEventSlim(false);
 
-        try
+        var options = new GoOptions
         {
-            // Override the default handler for testing
-            OnException = ex =>
-            {
-                exceptionThrown = true;
-                channel.WriteAsync(ex).AsTask().Wait();
-                channel.CompleteAsync().AsTask().Wait();
-            };
+            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
+            OperationName = "TestOperation",
+            Metadata = new Dictionary<string, object?> { ["TestKey"] = "TestValue" }
+        };
 
-            // Act
-            _ = Go(() => throw expectedException);
+        // Act
+        Go(() => throw expectedException, options);
 
-            var caughtException = await channel.FirstOrDefaultAsync();
+        // Wait for exception to be handled
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
 
-            // Assert
-            Assert.NotNull(caughtException);
-            Assert.True(exceptionThrown, "The exception handler was not called");
-            Assert.Equal(expectedException, caughtException);
+        // Assert
+        Assert.True(signaled, "Exception handler was not called within timeout");
+        var capturedExceptions = testHandler.GetCapturedExceptions();
+        Assert.Single(capturedExceptions);
+
+        var context = capturedExceptions[0];
+        Assert.Equal(expectedException, context.Exception);
+        Assert.Equal("TestOperation", context.OperationName);
+        Assert.Contains("TestKey", context.Metadata.Keys);
+        Assert.Equal("TestValue", context.Metadata["TestKey"]);
+        Assert.NotEmpty(context.RoutineId);
+    }
+
+    private class TestChannelExceptionHandler : IExceptionHandler
+    {
+        private readonly TestExceptionHandler innerHandler;
+        private readonly ManualResetEventSlim resetEvent;
+
+        public TestChannelExceptionHandler(TestExceptionHandler innerHandler, ManualResetEventSlim resetEvent)
+        {
+            this.innerHandler = innerHandler;
+            this.resetEvent = resetEvent;
         }
-        finally
+
+        public async ValueTask HandleAsync(IExceptionContext context)
         {
-            // Restore original handler
-            OnException = originalHandler;
+            await this.innerHandler.HandleAsync(context);
+            this.resetEvent.Set();
         }
     }
 
@@ -196,7 +213,7 @@ public class ConcurRoutineTests
         var expectedException = new InvalidOperationException("Test exception");
 
         // Act
-        _ = Go(async ch =>
+        Go(async ch =>
         {
             try
             {
@@ -639,7 +656,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<string>();
 
         // Act
-        _ = Go(Producer, channel);
+        Go(Producer, channel);
         var result = await channel.FirstOrDefaultAsync();
 
         // Assert
@@ -662,7 +679,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(Producer, input, channel);
+        Go(Producer, input, channel);
         var result = await channel.FirstOrDefaultAsync();
 
         // Assert
@@ -685,7 +702,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<string>();
 
         // Act
-        _ = Go(Producer, input1, input2, channel);
+        Go(Producer, input1, input2, channel);
 
         var result = await channel.FirstOrDefaultAsync();
 
@@ -707,7 +724,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(Producer, 10, 20, 30, channel);
+        Go(Producer, 10, 20, 30, channel);
 
         var result = await channel.FirstOrDefaultAsync();
 
@@ -729,7 +746,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<string>();
 
         // Act
-        _ = Go(Producer, "H", "a", "l", "l", channel);
+        Go(Producer, "H", "a", "l", "l", channel);
 
         var result = await channel.FirstOrDefaultAsync();
 
@@ -751,7 +768,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(Producer, 1, 2, 3, 4, 5, channel);
+        Go(Producer, 1, 2, 3, 4, 5, channel);
 
         var result = await channel.FirstOrDefaultAsync();
 
@@ -773,7 +790,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(Producer, 1, 2, 3, 4, 5, 6, channel);
+        Go(Producer, 1, 2, 3, 4, 5, 6, channel);
 
         var collected = await channel.ToListAsync();
 
@@ -800,7 +817,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(Producer, 1, 2, 3, 4, 5, 6, 7, channel);
+        Go(Producer, 1, 2, 3, 4, 5, 6, 7, channel);
 
         var result = await channel.FirstOrDefaultAsync();
 
@@ -822,19 +839,19 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act - start multiple routines with different generic parameters
-        _ = Go(static async (value, ch) =>
+        Go(static async (value, ch) =>
         {
             await Task.Delay(10);
             await ch.WriteAsync(value);
         }, 1, channel);
 
-        _ = Go(static async (a, b, ch) =>
+        Go(static async (a, b, ch) =>
         {
             await Task.Delay(20);
             await ch.WriteAsync(a + b);
         }, 2, 3, channel);
 
-        _ = Go(static async (a, b, c, ch) =>
+        Go(static async (a, b, c, ch) =>
         {
             await Task.Delay(15);
             await ch.WriteAsync(a + b + c);
@@ -864,40 +881,34 @@ public class ConcurRoutineTests
     public async Task Go_WithGenericParameters_HandlesExceptions()
     {
         // Arrange
-        var exceptionThrown = false;
-        var originalHandler = OnException;
+        var testHandler = new TestExceptionHandler();
         var expectedException = new InvalidOperationException("Test exception");
-        var channel = new DefaultChannel<Exception>();
+        var resetEvent = new ManualResetEventSlim(false);
 
-        try
+        var options = new GoOptions
         {
-            // Override the default handler for testing
-            OnException = ex =>
-            {
-                exceptionThrown = true;
-                channel.WriteAsync(ex).AsTask().Wait();
-                channel.CompleteAsync().AsTask().Wait();
-            };
+            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
+            OperationName = "GenericParameterTest"
+        };
 
-            // Act
-            _ = Go(async (_, _) =>
-            {
-                await Task.Delay(10);
-                throw expectedException;
-            }, "param1", "param2");
-
-            var caughtException = await channel.FirstOrDefaultAsync();
-
-            // Assert
-            Assert.NotNull(caughtException);
-            Assert.True(exceptionThrown, "The exception handler was not called");
-            Assert.Equal(expectedException, caughtException);
-        }
-        finally
+        // Act
+        Go(async (_, _) =>
         {
-            // Restore original handler
-            OnException = originalHandler;
-        }
+            await Task.Delay(10);
+            throw expectedException;
+        }, "param1", "param2", options);
+
+        // Wait for exception to be handled
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+
+        // Assert
+        Assert.True(signaled, "Exception handler was not called within timeout");
+        var capturedExceptions = testHandler.GetCapturedExceptions();
+        Assert.Single(capturedExceptions);
+
+        var context = capturedExceptions[0];
+        Assert.Equal(expectedException, context.Exception);
+        Assert.Equal("GenericParameterTest", context.OperationName);
     }
 
     #endregion
@@ -914,7 +925,7 @@ public class ConcurRoutineTests
         var stringLengthCaptured = 0;
 
         // Act
-        _ = Go(wg, async param =>
+        Go(wg, async param =>
         {
             await Task.Delay(10);
             Interlocked.Increment(ref executionCount);
@@ -938,7 +949,7 @@ public class ConcurRoutineTests
         const int input = 5;
 
         // Act
-        _ = Go(wg, Producer, input, channel);
+        Go(wg, Producer, input, channel);
 
         // Wait for all routines to complete
         await wg.WaitAsync();
@@ -966,7 +977,7 @@ public class ConcurRoutineTests
         const string expectedResult = "Hello World";
 
         // Act
-        _ = Go(wg, Producer, input1, input2, channel);
+        Go(wg, Producer, input1, input2, channel);
 
         // Wait for all routines to complete
         await wg.WaitAsync();
@@ -991,7 +1002,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(wg, Producer, 10, 20, 30, channel);
+        Go(wg, Producer, 10, 20, 30, channel);
 
         // Wait for all routines to complete
         await wg.WaitAsync();
@@ -1016,7 +1027,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<string>();
 
         // Act
-        _ = Go(wg, Producer, "H", "a", "l", "l", channel);
+        Go(wg, Producer, "H", "a", "l", "l", channel);
 
         // Wait for all routines to complete
         await wg.WaitAsync();
@@ -1041,7 +1052,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(wg, Producer, 1, 2, 3, 4, 5, channel);
+        Go(wg, Producer, 1, 2, 3, 4, 5, channel);
 
         // Wait for all routines to complete
         await wg.WaitAsync();
@@ -1066,7 +1077,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(wg, Producer, 1, 2, 3, 4, 5, 6, channel);
+        Go(wg, Producer, 1, 2, 3, 4, 5, 6, channel);
 
         // Wait for all routines to complete
         await wg.WaitAsync();
@@ -1097,7 +1108,7 @@ public class ConcurRoutineTests
         var channel = new DefaultChannel<int>();
 
         // Act
-        _ = Go(wg, Producer, 1, 2, 3, 4, 5, 6, 7, channel);
+        Go(wg, Producer, 1, 2, 3, 4, 5, 6, 7, channel);
 
         // Wait for all routines to complete
         await wg.WaitAsync();
@@ -1122,19 +1133,19 @@ public class ConcurRoutineTests
         var results = new ConcurrentBag<int>();
 
         // Act - start multiple routines with different generic parameters
-        _ = Go(wg, async value =>
+        Go(wg, async value =>
         {
             await Task.Delay(10);
             results.Add(value);
         }, 1);
 
-        _ = Go(wg, async (a, b) =>
+        Go(wg, async (a, b) =>
         {
             await Task.Delay(20);
             results.Add(a + b);
         }, 2, 3);
 
-        _ = Go(wg, async (a, b, c) =>
+        Go(wg, async (a, b, c) =>
         {
             await Task.Delay(15);
             results.Add(a + b + c);
@@ -1155,43 +1166,37 @@ public class ConcurRoutineTests
     {
         // Arrange
         var wg = new WaitGroup();
-        var exceptionThrown = false;
-        var originalHandler = OnException;
+        var testHandler = new TestExceptionHandler();
         var expectedException = new InvalidOperationException("Test exception");
-        var channel = new DefaultChannel<Exception>();
+        var resetEvent = new ManualResetEventSlim(false);
 
-        try
+        var options = new GoOptions
         {
-            // Override the default handler for testing
-            OnException = ex =>
-            {
-                exceptionThrown = true;
-                channel.WriteAsync(ex).AsTask().Wait();
-                channel.CompleteAsync().AsTask().Wait();
-            };
+            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
+            OperationName = "WaitGroupGenericParameterTest"
+        };
 
-            // Act
-            _ = Go(wg, async (_, _) =>
-            {
-                await Task.Delay(10);
-                throw expectedException;
-            }, "param1", "param2");
-
-            var caughtException = await channel.FirstOrDefaultAsync();
-
-            // Wait for the WaitGroup to complete despite the exception
-            await wg.WaitAsync();
-
-            // Assert
-            Assert.NotNull(caughtException);
-            Assert.True(exceptionThrown, "The exception handler was not called");
-            Assert.Equal(expectedException, caughtException);
-        }
-        finally
+        // Act
+        Go(wg, async (_, _) =>
         {
-            // Restore original handler
-            OnException = originalHandler;
-        }
+            await Task.Delay(10);
+            throw expectedException;
+        }, "param1", "param2", options);
+
+        // Wait for exception to be handled
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+
+        // Wait for the WaitGroup to complete despite the exception
+        await wg.WaitAsync();
+
+        // Assert
+        Assert.True(signaled, "Exception handler was not called within timeout");
+        var capturedExceptions = testHandler.GetCapturedExceptions();
+        Assert.Single(capturedExceptions);
+
+        var context = capturedExceptions[0];
+        Assert.Equal(expectedException, context.Exception);
+        Assert.Equal("WaitGroupGenericParameterTest", context.OperationName);
     }
 
     #endregion

@@ -41,7 +41,7 @@ public class IChannelBehaviorTests
         IChannel<bool> channel = new QueueChannel<bool>();
 
         // Act
-        _ = Go(async () =>
+        Go(async () =>
         {
             await Task.Delay(10);
             executed = true;
@@ -64,17 +64,17 @@ public class IChannelBehaviorTests
         const int concurrentTasks = 3;
 
         // Act
-        _ = Go(async ch =>
+        Go(async ch =>
         {
             await Task.Delay(100);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(async ch =>
+        Go(async ch =>
         {
             await Task.Delay(500);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(async ch =>
+        Go(async ch =>
         {
             await Task.Delay(1000);
             await ch.WriteAsync(1);
@@ -105,17 +105,17 @@ public class IChannelBehaviorTests
         const int concurrentTasks = 3;
 
         // Act
-        _ = Go(wg, async ch =>
+        Go(wg, async ch =>
         {
             await Task.Delay(100);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(wg, async ch =>
+        Go(wg, async ch =>
         {
             await Task.Delay(500);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(wg, async ch =>
+        Go(wg, async ch =>
         {
             await Task.Delay(1000);
             await ch.WriteAsync(1);
@@ -161,7 +161,7 @@ public class IChannelBehaviorTests
         IChannel<bool> channel = new QueueChannel<bool>(1);
 
         // Act
-        _ = Go(async () =>
+        Go(async () =>
         {
             await Task.Delay(10);
             executed = true;
@@ -184,17 +184,17 @@ public class IChannelBehaviorTests
         const int concurrentTasks = 3;
 
         // Act
-        _ = Go(async ch =>
+        Go(async ch =>
         {
             await Task.Delay(100);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(async ch =>
+        Go(async ch =>
         {
             await Task.Delay(500);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(async ch =>
+        Go(async ch =>
         {
             await Task.Delay(1000);
             await ch.WriteAsync(1);
@@ -227,17 +227,17 @@ public class IChannelBehaviorTests
         const int concurrentTasks = 3;
 
         // Act
-        _ = Go(wg, async ch =>
+        Go(wg, async ch =>
         {
             await Task.Delay(100);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(wg, async ch =>
+        Go(wg, async ch =>
         {
             await Task.Delay(500);
             await ch.WriteAsync(1);
         }, channel);
-        _ = Go(wg, async ch =>
+        Go(wg, async ch =>
         {
             await Task.Delay(1000);
             await ch.WriteAsync(1);

@@ -27,7 +27,7 @@ public class GoBenchmark
 
         for (var i = 0; i < Concurrency; i++)
         {
-            _ = Go(wg, async ch =>
+            Go(wg, async ch =>
             {
                 for (var j = 0; j < Iterations; j++)
                 {
@@ -36,7 +36,7 @@ public class GoBenchmark
             }, channel);
         }
 
-        _ = Go(async () =>
+        Go(async () =>
         {
             await wg.WaitAsync();
             await channel.CompleteAsync();
