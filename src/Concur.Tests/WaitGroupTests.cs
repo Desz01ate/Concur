@@ -44,17 +44,17 @@ public class WaitGroupTests
         bool[] executeResults = [false, false, false];
 
         // Act
-        _ = Go(wg, async () =>
+        Go(wg, async () =>
         {
             await Task.Delay(100);
             executeResults[0] = true;
         });
-        _ = Go(wg, async () =>
+        Go(wg, async () =>
         {
             await Task.Delay(500);
             executeResults[1] = true;
         });
-        _ = Go(wg, async () =>
+        Go(wg, async () =>
         {
             await Task.Delay(1000);
             executeResults[2] = true;
@@ -83,9 +83,9 @@ public class WaitGroupTests
         };
 
         // Act
-        _ = Go(wg, producer, channel);
-        _ = Go(wg, producer, channel);
-        _ = Go(wg, producer, channel);
+        Go(wg, producer, channel);
+        Go(wg, producer, channel);
+        Go(wg, producer, channel);
 
         await wg.WaitAsync();
         await channel.CompleteAsync();
