@@ -62,7 +62,7 @@ public class ConcurRoutineTests
         // Arrange
         var channel = new DefaultChannel<int>();
         var values = new[] { 1, 2, 3, 4, 5 };
-        Func<IChannel<int>, Task> producer = async chan =>
+        Func<DefaultChannel<int>, Task> producer = async chan =>
         {
             foreach (var value in values)
             {
@@ -98,11 +98,12 @@ public class ConcurRoutineTests
         // Arrange
         var channel = new DefaultChannel<int>();
         var values = new[] { 1, 2, 3, 4, 5 };
-        Func<IChannel<int>, Task> producer = async chan =>
+        Func<DefaultChannel<int>, Task> producer = async chan =>
         {
             foreach (var value in values)
             {
-                await chan.WriteAsync(value);
+                // await chan.WriteAsync(value);
+                _ = chan << value;
             }
         };
 
@@ -260,7 +261,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(expectedValue, result);
 
-        static void Producer(IChannel<string> ch)
+        static void Producer(DefaultChannel<string> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(expectedValue).GetAwaiter().GetResult();
@@ -283,7 +284,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(expectedResult, result);
 
-        static void Producer(int value, IChannel<int> ch)
+        static void Producer(int value, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(value + value).GetAwaiter().GetResult();
@@ -307,7 +308,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal("Hello World", result);
 
-        static void Producer(string a, string b, IChannel<string> ch)
+        static void Producer(string a, string b, DefaultChannel<string> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + " " + b).GetAwaiter().GetResult();
@@ -329,7 +330,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(60, result);
 
-        static void Producer(int a, int b, int c, IChannel<int> ch)
+        static void Producer(int a, int b, int c, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c).GetAwaiter().GetResult();
@@ -351,7 +352,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal("Hall", result);
 
-        static void Producer(string a, string b, string c, string d, IChannel<string> ch)
+        static void Producer(string a, string b, string c, string d, DefaultChannel<string> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c + d).GetAwaiter().GetResult();
@@ -373,7 +374,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(120, result);
 
-        static void Producer(int a, int b, int c, int d, int e, IChannel<int> ch)
+        static void Producer(int a, int b, int c, int d, int e, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a * b * c * d * e).GetAwaiter().GetResult();
@@ -395,7 +396,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, collected);
 
-        static void Producer(int a, int b, int c, int d, int e, int f, IChannel<int> ch)
+        static void Producer(int a, int b, int c, int d, int e, int f, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a).GetAwaiter().GetResult();
@@ -478,7 +479,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(input + input, result);
 
-        static void Producer(int a, IChannel<int> ch)
+        static void Producer(int a, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + a).GetAwaiter().GetResult();
@@ -506,7 +507,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(expectedResult, result);
 
-        static void Producer(string a, string b, IChannel<string> ch)
+        static void Producer(string a, string b, DefaultChannel<string> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + " " + b).GetAwaiter().GetResult();
@@ -531,7 +532,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(60, result);
 
-        static void Producer(int a, int b, int c, IChannel<int> ch)
+        static void Producer(int a, int b, int c, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c).GetAwaiter().GetResult();
@@ -556,7 +557,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal("Hall", result);
 
-        static void Producer(string a, string b, string c, string d, IChannel<string> ch)
+        static void Producer(string a, string b, string c, string d, DefaultChannel<string> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c + d).GetAwaiter().GetResult();
@@ -581,7 +582,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(120, result);
 
-        static void Producer(int a, int b, int c, int d, int e, IChannel<int> ch)
+        static void Producer(int a, int b, int c, int d, int e, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a * b * c * d * e).GetAwaiter().GetResult();
@@ -607,7 +608,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, result);
 
-        static void Producer(int a, int b, int c, int d, int e, int f, IChannel<int> ch)
+        static void Producer(int a, int b, int c, int d, int e, int f, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a).GetAwaiter().GetResult();
@@ -637,7 +638,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(28, result);
 
-        static void Producer(int a, int b, int c, int d, int e, int f, int g, IChannel<int> ch)
+        static void Producer(int a, int b, int c, int d, int e, int f, int g, DefaultChannel<int> ch)
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c + d + e + f + g).GetAwaiter().GetResult();
@@ -662,7 +663,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(expectedValue, result);
 
-        static async Task Producer(IChannel<string> ch)
+        static async Task Producer(DefaultChannel<string> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(expectedValue);
@@ -685,7 +686,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(expectedResult, result);
 
-        static async Task Producer(int value, IChannel<int> ch)
+        static async Task Producer(int value, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(value + value);
@@ -709,7 +710,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal("Hello World", result);
 
-        static async Task Producer(string a, string b, IChannel<string> ch)
+        static async Task Producer(string a, string b, DefaultChannel<string> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + " " + b);
@@ -731,7 +732,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(60, result);
 
-        static async Task Producer(int a, int b, int c, IChannel<int> ch)
+        static async Task Producer(int a, int b, int c, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c);
@@ -753,7 +754,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal("Hall", result);
 
-        static async Task Producer(string a, string b, string c, string d, IChannel<string> ch)
+        static async Task Producer(string a, string b, string c, string d, DefaultChannel<string> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c + d);
@@ -775,7 +776,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(120, result);
 
-        static async Task Producer(int a, int b, int c, int d, int e, IChannel<int> ch)
+        static async Task Producer(int a, int b, int c, int d, int e, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a * b * c * d * e);
@@ -797,7 +798,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, collected);
 
-        static async Task Producer(int a, int b, int c, int d, int e, int f, IChannel<int> ch)
+        static async Task Producer(int a, int b, int c, int d, int e, int f, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a);
@@ -959,7 +960,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(input + input, result);
 
-        static async Task Producer(int a, IChannel<int> ch)
+        static async Task Producer(int a, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + a);
@@ -987,7 +988,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(expectedResult, result);
 
-        static async Task Producer(string a, string b, IChannel<string> ch)
+        static async Task Producer(string a, string b, DefaultChannel<string> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + " " + b);
@@ -1012,7 +1013,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(60, result);
 
-        static async Task Producer(int a, int b, int c, IChannel<int> ch)
+        static async Task Producer(int a, int b, int c, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c);
@@ -1037,7 +1038,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal("Hall", result);
 
-        static async Task Producer(string a, string b, string c, string d, IChannel<string> ch)
+        static async Task Producer(string a, string b, string c, string d, DefaultChannel<string> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c + d);
@@ -1062,7 +1063,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(120, result);
 
-        static async Task Producer(int a, int b, int c, int d, int e, IChannel<int> ch)
+        static async Task Producer(int a, int b, int c, int d, int e, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a * b * c * d * e);
@@ -1088,7 +1089,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, result);
 
-        static async Task Producer(int a, int b, int c, int d, int e, int f, IChannel<int> ch)
+        static async Task Producer(int a, int b, int c, int d, int e, int f, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a);
@@ -1118,7 +1119,7 @@ public class ConcurRoutineTests
         // Assert
         Assert.Equal(28, result);
 
-        static async Task Producer(int a, int b, int c, int d, int e, int f, int g, IChannel<int> ch)
+        static async Task Producer(int a, int b, int c, int d, int e, int f, int g, DefaultChannel<int> ch)
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c + d + e + f + g);

@@ -4,12 +4,12 @@ using System.Threading.Channels;
 using Abstractions;
 
 /// <summary>
-/// Provides a default implementation of the <see cref="IChannel{T}"/> interface.
+/// Provides a default implementation of the <see cref="Concur.Abstractions.IChannel{T}"/> interface.
 /// This class uses the <see cref="System.Threading.Channels.Channel{T}"/> for its underlying implementation,
 /// supporting both bounded and unbounded channel behaviors.
 /// </summary>
 /// <typeparam name="T">The type of data handled by the channel.</typeparam>
-public sealed class DefaultChannel<T> : IChannel<T>
+public sealed class DefaultChannel<T> : IChannel<T, DefaultChannel<T>>
 {
     private readonly Channel<T> channel;
 
@@ -55,6 +55,19 @@ public sealed class DefaultChannel<T> : IChannel<T>
         this.channel.Writer.TryComplete(ex);
 
         return ValueTask.CompletedTask;
+    }
+
+    // <inheritdoc />
+    public static DefaultChannel<T> operator <<(DefaultChannel<T> channel, T item)
+    {
+        channel.channel.Writer.WriteAsync(item).AsTask().Wait();
+        return channel;
+    }
+
+    // <inheritdoc />
+    public static T operator -(DefaultChannel<T> channel)
+    {
+        return channel.channel.Reader.ReadAsync().AsTask().GetAwaiter().GetResult();
     }
 
     // <inheritdoc/>

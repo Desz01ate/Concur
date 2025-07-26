@@ -100,7 +100,7 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     /// <typeparam name="T">The type of data in the channel.</typeparam>
     /// <returns>A IConcurChannel that a consumer can read from.</returns>
-    public static IChannel<T> Go<T>(Func<IChannel<T>, Task> producer, int? capacity = null, GoOptions? options = null)
+    public static IChannel<T, DefaultChannel<T>> Go<T>(Func<DefaultChannel<T>, Task> producer, int? capacity = null, GoOptions? options = null)
     {
         var channel = new DefaultChannel<T>(capacity);
 

@@ -5,17 +5,17 @@ using Channels;
 using static ConcurRoutine;
 
 /// <summary>
-/// Verify the behavior of an IChannel<> with custom implementation based on ConcurrentQueue.
+/// Verify the behavior of an QueueChannel<> with custom implementation based on ConcurrentQueue.
 /// Ensures that it works with the `Go` function regardless of the implementation, assuming it's implemented correctly.
 /// </summary>
-public class IChannelBehaviorTests
+public class QueueChannelBehaviorTests
 {
     [Fact]
     public async Task Go_WithQueueChannelUnbounded_WithAction_WithClosure_ExecutesFunc()
     {
         // Arrange
         var executed = false;
-        IChannel<bool> channel = new QueueChannel<bool>();
+        QueueChannel<bool> channel = new QueueChannel<bool>();
 
         // Act
         Go(() =>
@@ -38,7 +38,7 @@ public class IChannelBehaviorTests
     {
         // Arrange
         var executed = false;
-        IChannel<bool> channel = new QueueChannel<bool>();
+        QueueChannel<bool> channel = new QueueChannel<bool>();
 
         // Act
         Go(async () =>
@@ -60,7 +60,7 @@ public class IChannelBehaviorTests
     public async Task Go_WithQueueChannelUnbounded_WithMultipleRoutines_AllCompleteCorrectly()
     {
         // Arrange
-        IChannel<int> channel = new QueueChannel<int>();
+        QueueChannel<int> channel = new QueueChannel<int>();
         const int concurrentTasks = 3;
 
         // Act
@@ -100,7 +100,7 @@ public class IChannelBehaviorTests
     public async Task Go_WithQueueChannelUnbounded_WithMultipleRoutines_WithWaitGroup_AllCompleteCorrectly()
     {
         // Arrange
-        IChannel<int> channel = new QueueChannel<int>();
+        QueueChannel<int> channel = new QueueChannel<int>();
         var wg = new WaitGroup();
         const int concurrentTasks = 3;
 
@@ -135,7 +135,7 @@ public class IChannelBehaviorTests
     {
         // Arrange
         var executed = false;
-        IChannel<bool> channel = new QueueChannel<bool>(1);
+        QueueChannel<bool> channel = new QueueChannel<bool>(1);
 
         // Act
         Go(() =>
@@ -158,7 +158,7 @@ public class IChannelBehaviorTests
     {
         // Arrange
         var executed = false;
-        IChannel<bool> channel = new QueueChannel<bool>(1);
+        QueueChannel<bool> channel = new QueueChannel<bool>(1);
 
         // Act
         Go(async () =>
@@ -180,7 +180,7 @@ public class IChannelBehaviorTests
     public async Task Go_WithQueueChannelBounded_WithMultipleRoutines_AllCompleteCorrectly()
     {
         // Arrange
-        IChannel<int> channel = new QueueChannel<int>(1);
+        QueueChannel<int> channel = new QueueChannel<int>(1);
         const int concurrentTasks = 3;
 
         // Act
@@ -222,7 +222,7 @@ public class IChannelBehaviorTests
         // Arrange
         // the queue channel having a few caveat when using as a bounded mode,
         // making it deadlock as a result when the consumer is higher than the buffer size.
-        IChannel<int> channel = new QueueChannel<int>(3);
+        QueueChannel<int> channel = new QueueChannel<int>(3);
         var wg = new WaitGroup();
         const int concurrentTasks = 3;
 
