@@ -73,7 +73,7 @@ public class WaitGroupTests
         var wg = new WaitGroup();
         var channel = new DefaultChannel<int>();
         var values = new[] { 1, 2, 3, 4, 5 };
-        Func<IChannel<int>, Task> producer = async chan =>
+        Func<DefaultChannel<int>, Task> producer = async chan =>
         {
             foreach (var value in values)
             {

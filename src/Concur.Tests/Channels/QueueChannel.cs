@@ -3,7 +3,7 @@ namespace Concur.Tests.Channels;
 using System.Collections.Concurrent;
 using Abstractions;
 
-public sealed class QueueChannel<T> : IChannel<T>
+public sealed class QueueChannel<T> : IChannel<T, QueueChannel<T>>
 {
     private readonly ConcurrentQueue<T> queue;
     private readonly SemaphoreSlim semaphore;
@@ -96,6 +96,17 @@ public sealed class QueueChannel<T> : IChannel<T>
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    public static QueueChannel<T> operator <<(QueueChannel<T> channel, T item)
+    {
+        channel.WriteAsync(item).GetAwaiter().GetResult();
+        return channel;
+    }
+
+    public static T operator -(QueueChannel<T> channel)
+    {
+        return channel.queue.TryDequeue(out var item) ? item : default!;
     }
 
     /// <inheritdoc/>

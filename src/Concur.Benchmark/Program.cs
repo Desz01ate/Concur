@@ -50,6 +50,37 @@ public class GoBenchmark
         }
     }
 
+    [Benchmark]
+    public async Task Goroutine_WithWriteOperator_WithWaitGroup()
+    {
+        var wg = new WaitGroup();
+        var channel = new DefaultChannel<int>();
+
+        for (var i = 0; i < Concurrency; i++)
+        {
+            Go(wg, ch =>
+            {
+                for (var j = 0; j < Iterations; j++)
+                {
+                    _ = ch << 1;
+                }
+            }, channel);
+        }
+
+        Go(async () =>
+        {
+            await wg.WaitAsync();
+            await channel.CompleteAsync();
+        });
+
+        var sum = await channel.SumAsync();
+
+        if (sum != ExpectedSum)
+        {
+            throw new Exception("Sum is not correct");
+        }
+    }
+
     [Benchmark(Baseline = true)]
     public async Task Channel_WithTpl()
     {
