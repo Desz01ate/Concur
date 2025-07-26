@@ -51,6 +51,33 @@ public static class ConcurRoutine
     private static string GenerateRoutineId() => Guid.NewGuid().ToString("N")[..8];
 
     /// <summary>
+    /// Executes an action with concurrency limiting if specified in options.
+    /// </summary>
+    /// <param name="action">The action to execute.</param>
+    /// <param name="options">Optional configuration options including concurrency limits.</param>
+    private static async Task ExecuteWithConcurrencyLimitAsync(Func<Task> action, GoOptions? options)
+    {
+        var semaphore = ConcurrencyManager.GetSemaphore(options);
+
+        if (semaphore == null)
+        {
+            await action();
+            return;
+        }
+
+        await semaphore.WaitAsync();
+
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+    /// <summary>
     /// Runs a fire-and-forget synchronous action on a background thread.
     /// </summary>
     /// <param name="action">The synchronous action to execute.</param>
@@ -59,14 +86,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                action();
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    action();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -80,14 +110,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func();
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -106,15 +139,18 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await producer(channel);
-            }
-            catch (Exception e)
-            {
-                await channel.FailAsync(e);
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await producer(channel);
+                }
+                catch (Exception e)
+                {
+                    await channel.FailAsync(e);
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
 
         return channel;
@@ -141,18 +177,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                action();
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    action();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -175,18 +214,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func();
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -204,14 +246,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -226,14 +271,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -249,14 +297,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -273,14 +324,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -298,14 +352,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -324,14 +381,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5, p6);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -351,14 +411,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5, p6, p7);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -379,14 +442,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5, p6, p7, p8);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -405,14 +471,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -428,14 +497,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -452,14 +524,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -477,14 +552,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -503,14 +581,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -530,14 +611,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5, p6);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -558,14 +642,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5, p6, p7);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -587,14 +674,17 @@ public static class ConcurRoutine
     {
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5, p6, p7, p8);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+            }, options);
         });
     }
 
@@ -616,18 +706,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -646,18 +739,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -677,18 +773,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -709,18 +808,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -742,18 +844,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -776,18 +881,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5, p6);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -811,18 +919,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5, p6, p7);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -847,18 +958,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                func(p1, p2, p3, p4, p5, p6, p7, p8);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -886,18 +1000,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -922,18 +1039,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -959,18 +1079,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -997,18 +1120,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -1036,18 +1162,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -1076,18 +1205,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5, p6);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -1117,18 +1249,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5, p6, p7);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 
@@ -1170,18 +1305,21 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            try
+            await ExecuteWithConcurrencyLimitAsync(async () =>
             {
-                await func(p1, p2, p3, p4, p5, p6, p7, p8);
-            }
-            catch (Exception e)
-            {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
-            }
-            finally
-            {
-                wg.Done();
-            }
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                }
+            }, options);
         });
     }
 

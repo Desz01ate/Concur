@@ -24,6 +24,26 @@ public sealed class GoOptions
         new Dictionary<string, object?>();
 
     /// <summary>
+    /// Maximum number of concurrent executions allowed for this operation.
+    /// If specified, this operation will wait for an available slot before executing.
+    /// Takes precedence over ConcurrencyGroup limits.
+    /// </summary>
+    public int? MaxConcurrency { get; init; }
+
+    /// <summary>
+    /// A custom semaphore to control concurrency for this specific operation.
+    /// If provided, MaxConcurrency and ConcurrencyGroup are ignored.
+    /// </summary>
+    public SemaphoreSlim? ConcurrencyLimiter { get; init; }
+
+    /// <summary>
+    /// Optional concurrency group name. Operations with the same group name
+    /// will share the same concurrency limit as configured globally.
+    /// Ignored if MaxConcurrency or ConcurrencyLimiter is specified.
+    /// </summary>
+    public string? ConcurrencyGroup { get; init; }
+
+    /// <summary>
     /// Gets the default options instance.
     /// </summary>
     public static GoOptions Default { get; } = new();
