@@ -18,7 +18,7 @@ public class ExceptionHandlingTests
         var options = new GoOptions
         {
             ExceptionHandler = SilentExceptionHandler.Instance,
-            OperationName = "SilentTest"
+            OperationName = "SilentTest",
         };
         var resetEvent = new ManualResetEventSlim(false);
 
@@ -45,14 +45,14 @@ public class ExceptionHandlingTests
         {
             ["UserId"] = 123,
             ["OperationType"] = "DataProcessing",
-            ["RequestId"] = Guid.NewGuid()
+            ["RequestId"] = Guid.NewGuid(),
         };
 
         var options = new GoOptions
         {
             ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
             OperationName = "MetadataTest",
-            Metadata = metadata
+            Metadata = metadata,
         };
 
         // Act
@@ -82,7 +82,7 @@ public class ExceptionHandlingTests
 
         var options = new GoOptions
         {
-            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent)
+            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
         };
 
         // Act
@@ -113,7 +113,7 @@ public class ExceptionHandlingTests
         var options = new GoOptions
         {
             ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
-            OperationName = "ChannelTest"
+            OperationName = "ChannelTest",
         };
 
         // Act
@@ -155,7 +155,7 @@ public class ExceptionHandlingTests
         var options = new GoOptions
         {
             ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
-            OperationName = "WaitGroupExceptionTest"
+            OperationName = "WaitGroupExceptionTest",
         };
 
         // Act
@@ -180,7 +180,7 @@ public class ExceptionHandlingTests
 
         var options = new GoOptions
         {
-            ExceptionHandler = faultyHandler
+            ExceptionHandler = faultyHandler,
         };
 
         // Act & Assert - should not throw even though handler throws

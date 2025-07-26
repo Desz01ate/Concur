@@ -37,13 +37,6 @@ public sealed class GoOptions
     public SemaphoreSlim? ConcurrencyLimiter { get; init; }
 
     /// <summary>
-    /// Optional concurrency group name. Operations with the same group name
-    /// will share the same concurrency limit as configured globally.
-    /// Ignored if MaxConcurrency or ConcurrencyLimiter is specified.
-    /// </summary>
-    public string? ConcurrencyGroup { get; init; }
-
-    /// <summary>
     /// Gets the default options instance.
     /// </summary>
     public static GoOptions Default { get; } = new();

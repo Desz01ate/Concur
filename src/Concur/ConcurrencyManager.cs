@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 namespace Concur;
 
 /// <summary>
@@ -8,51 +6,20 @@ namespace Concur;
 /// </summary>
 internal static class ConcurrencyManager
 {
-    private readonly static ConcurrentDictionary<string, SemaphoreSlim> GroupLimiters = new();
-    private readonly static ConcurrentDictionary<int, SemaphoreSlim> MaxConcurrencyLimiters = new();
+    private const int DefaultMaxCacheCapacity = 50;
+
+    private readonly static LruCache<SemaphoreSlim> MaxConcurrencyCache = new(maxCapacity: DefaultMaxCacheCapacity);
 
     /// <summary>
-    /// Sets a global concurrency limit for a specific group name.
+    /// Gets the current number of cached MaxConcurrency semaphores.
     /// </summary>
-    /// <param name="groupName">The name of the concurrency group.</param>
-    /// <param name="maxConcurrency">The maximum number of concurrent executions allowed.</param>
-    public static void SetGroupLimit(string groupName, int maxConcurrency)
-    {
-        if (string.IsNullOrWhiteSpace(groupName))
-        {
-            throw new ArgumentException("Group name cannot be null or whitespace.", nameof(groupName));
-        }
-
-        if (maxConcurrency <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxConcurrency), "Max concurrency must be greater than zero.");
-        }
-
-        GroupLimiters.AddOrUpdate(groupName,
-            _ => new SemaphoreSlim(maxConcurrency, maxConcurrency),
-            (_, existing) =>
-            {
-                existing.Dispose();
-                return new SemaphoreSlim(maxConcurrency, maxConcurrency);
-            });
-    }
+    public static int CurrentCacheSize => MaxConcurrencyCache.Count;
 
     /// <summary>
-    /// Removes a group limit, disposing of the associated semaphore.
+    /// Gets the maximum capacity of the MaxConcurrency semaphore cache.
+    /// Default is 50. This is set at startup and cannot be changed at runtime.
     /// </summary>
-    /// <param name="groupName">The name of the concurrency group to remove.</param>
-    /// <returns>True if the group was removed, false if it didn't exist.</returns>
-    public static bool RemoveGroupLimit(string groupName)
-    {
-        if (GroupLimiters.TryRemove(groupName, out var semaphore))
-        {
-            semaphore.Dispose();
-
-            return true;
-        }
-
-        return false;
-    }
+    public static int MaxCacheCapacity => DefaultMaxCacheCapacity;
 
     /// <summary>
     /// Gets the appropriate semaphore based on the provided options.
@@ -69,24 +36,21 @@ internal static class ConcurrencyManager
 
         // Priority 1: Custom semaphore
         if (options.ConcurrencyLimiter != null)
+        {
             return options.ConcurrencyLimiter;
+        }
 
-        // Priority 2: MaxConcurrency (create or reuse semaphore)
+        // Priority 2: MaxConcurrency (create or reuse semaphore with LRU cache)
         if (options.MaxConcurrency.HasValue)
         {
             var maxConcurrency = options.MaxConcurrency.Value;
+
             if (maxConcurrency <= 0)
-                throw new ArgumentOutOfRangeException(nameof(options.MaxConcurrency),
-                    "MaxConcurrency must be greater than zero.");
+            {
+                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency, nameof(options.MaxConcurrency));
+            }
 
-            return MaxConcurrencyLimiters.GetOrAdd(maxConcurrency,
-                count => new SemaphoreSlim(count, count));
-        }
-
-        // Priority 3: ConcurrencyGroup
-        if (!string.IsNullOrWhiteSpace(options.ConcurrencyGroup))
-        {
-            return GroupLimiters.GetValueOrDefault(options.ConcurrencyGroup);
+            return MaxConcurrencyCache.GetOrAdd(maxConcurrency, count => new SemaphoreSlim(count, count));
         }
 
         return null;
@@ -96,20 +60,8 @@ internal static class ConcurrencyManager
     /// Clears all managed semaphores and disposes of them.
     /// This method is primarily intended for testing scenarios.
     /// </summary>
-    internal static void ClearAll()
+    public static void ClearAll()
     {
-        foreach (var semaphore in GroupLimiters.Values)
-        {
-            semaphore.Dispose();
-        }
-
-        GroupLimiters.Clear();
-
-        foreach (var semaphore in MaxConcurrencyLimiters.Values)
-        {
-            semaphore.Dispose();
-        }
-
-        MaxConcurrencyLimiters.Clear();
+        MaxConcurrencyCache.Clear();
     }
 }
