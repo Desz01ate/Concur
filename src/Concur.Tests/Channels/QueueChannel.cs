@@ -33,7 +33,7 @@ public sealed class QueueChannel<T> : IChannel<T, QueueChannel<T>>
         // Handle capacity constraints for bounded channels
         if (this.capacity.HasValue)
         {
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 lock (this.lockObject)
                 {
@@ -54,6 +54,7 @@ public sealed class QueueChannel<T> : IChannel<T, QueueChannel<T>>
                 // Wait a bit before retrying if at capacity
                 await Task.Delay(1, cancellationToken);
             }
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         // Unbounded channel - just enqueue

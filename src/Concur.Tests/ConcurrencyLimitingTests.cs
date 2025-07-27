@@ -17,7 +17,7 @@ public class ConcurrencyLimitingTests
 
         for (var i = 0; i < totalTasks; i++)
         {
-            Go(wg, () =>
+            Go(wg, async () =>
             {
                 var current = Interlocked.Increment(ref concurrentCount);
 
@@ -28,7 +28,7 @@ public class ConcurrencyLimitingTests
                         break;
                 }
 
-                Thread.Sleep(100);
+                await Task.Delay(100);
                 Interlocked.Decrement(ref concurrentCount);
             }, options);
         }
@@ -53,7 +53,7 @@ public class ConcurrencyLimitingTests
 
         for (var i = 0; i < totalTasks; i++)
         {
-            Go(wg, () =>
+            Go(wg, async () =>
             {
                 var current = Interlocked.Increment(ref concurrentCount);
 
@@ -64,7 +64,7 @@ public class ConcurrencyLimitingTests
                         break;
                 }
 
-                Thread.Sleep(100);
+                await Task.Delay(100);
                 Interlocked.Decrement(ref concurrentCount);
             }, options);
         }
@@ -87,7 +87,7 @@ public class ConcurrencyLimitingTests
 
         for (var i = 0; i < totalTasks; i++)
         {
-            Go(wg, () =>
+            Go(wg, async () =>
             {
                 var current = Interlocked.Increment(ref concurrentCount);
 
@@ -98,7 +98,7 @@ public class ConcurrencyLimitingTests
                         break;
                 }
 
-                Thread.Sleep(50);
+                await Task.Delay(50);
                 Interlocked.Decrement(ref concurrentCount);
             });
         }
@@ -158,7 +158,7 @@ public class ConcurrencyLimitingTests
 
         for (var i = 0; i < totalTasks; i++)
         {
-            Go(wg, _ =>
+            Go(wg, async _ =>
             {
                 var current = Interlocked.Increment(ref concurrentCount);
 
@@ -169,7 +169,7 @@ public class ConcurrencyLimitingTests
                         break;
                 }
 
-                Thread.Sleep(100);
+                await Task.Delay(100);
                 Interlocked.Decrement(ref concurrentCount);
             }, i, options);
         }
@@ -206,7 +206,7 @@ public class ConcurrencyLimitingTests
             MaxConcurrency = 10,
         };
 
-        var result = ConcurrencyManager.GetSemaphore(options);
+        var result = options.GetOrCreateSemaphore();
 
         Assert.Same(customSemaphore, result);
     }

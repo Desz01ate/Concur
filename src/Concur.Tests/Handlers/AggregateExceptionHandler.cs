@@ -8,16 +8,21 @@ using Abstractions;
 internal sealed class AggregateExceptionHandler : IExceptionHandler
 {
     private readonly List<Exception> exceptions = [];
+    private readonly SemaphoreSlim semaphore = new(1, 1);
 
-    public AggregateExceptionHandler()
+    public async ValueTask HandleAsync(IExceptionContext context)
     {
-    }
+        await this.semaphore.WaitAsync();
 
-    public ValueTask HandleAsync(IExceptionContext context)
-    {
-        this.exceptions.Add(context.Exception);
+        try
+        {
 
-        return ValueTask.CompletedTask;
+            this.exceptions.Add(context.Exception);
+        }
+        finally
+        {
+            this.semaphore.Release();
+        }
     }
 
     public AggregateException GetAggregateException()

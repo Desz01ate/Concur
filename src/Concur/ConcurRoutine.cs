@@ -57,7 +57,7 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options including concurrency limits.</param>
     private static async Task ExecuteWithConcurrencyLimitAsync(Func<Task> action, GoOptions? options)
     {
-        var semaphore = ConcurrencyManager.GetSemaphore(options);
+        var semaphore = options?.GetOrCreateSemaphore();
 
         if (semaphore == null)
         {

@@ -7,6 +7,9 @@ using Abstractions;
 /// </summary>
 public sealed class GoOptions
 {
+    private SemaphoreSlim? InternalSemaphore;
+    private readonly object lockObject = new();
+
     /// <summary>
     /// The exception handler to use for this operation. If null, uses the default handler.
     /// </summary>
@@ -20,7 +23,7 @@ public sealed class GoOptions
     /// <summary>
     /// Additional metadata to include with the exception context.
     /// </summary>
-    public IReadOnlyDictionary<string, object?> Metadata { get; init; } = 
+    public IReadOnlyDictionary<string, object?> Metadata { get; init; } =
         new Dictionary<string, object?>();
 
     /// <summary>
@@ -32,12 +35,26 @@ public sealed class GoOptions
 
     /// <summary>
     /// A custom semaphore to control concurrency for this specific operation.
-    /// If provided, MaxConcurrency and ConcurrencyGroup are ignored.
+    /// If provided, MaxConcurrency is ignored.
     /// </summary>
     public SemaphoreSlim? ConcurrencyLimiter { get; init; }
 
-    /// <summary>
-    /// Gets the default options instance.
-    /// </summary>
-    public static GoOptions Default { get; } = new();
+    internal SemaphoreSlim? GetOrCreateSemaphore()
+    {
+        // Highest priority.
+        if (this.ConcurrencyLimiter is not null)
+        {
+            return this.ConcurrencyLimiter;
+        }
+
+        if (this.MaxConcurrency is not null)
+        {
+            lock (this.lockObject)
+            {
+                this.InternalSemaphore ??= new SemaphoreSlim(this.MaxConcurrency.Value, this.MaxConcurrency.Value);
+            }
+        }
+
+        return this.InternalSemaphore;
+    }
 }
