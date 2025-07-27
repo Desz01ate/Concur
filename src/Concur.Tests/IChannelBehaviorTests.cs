@@ -1,6 +1,5 @@
 namespace Concur.Tests;
 
-using Abstractions;
 using Channels;
 using static ConcurRoutine;
 
@@ -15,7 +14,7 @@ public class QueueChannelBehaviorTests
     {
         // Arrange
         var executed = false;
-        QueueChannel<bool> channel = new QueueChannel<bool>();
+        var channel = new QueueChannel<bool>();
 
         // Act
         Go(() =>

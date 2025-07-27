@@ -1,6 +1,5 @@
 namespace Concur.Tests;
 
-using Abstractions;
 using Implementations;
 using static ConcurRoutine;
 
