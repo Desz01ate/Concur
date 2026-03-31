@@ -31,8 +31,34 @@ public sealed class DefaultChannel<T> : IChannel<T, DefaultChannel<T>>
                     // This setting ensures that when the channel is full, write operations will wait
                     // for space to become available, mimicking the behavior of Go channels.
                     FullMode = BoundedChannelFullMode.Wait,
+                    SingleReader = true,
                 })
-                : Channel.CreateUnbounded<T>();
+                : Channel.CreateUnbounded<T>(new UnboundedChannelOptions
+                {
+                    SingleReader = true,
+                });
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultChannel{T}"/> class.
+    /// </summary>
+    /// <param name="options">
+    /// The options for the channel.
+    /// </param>
+    public DefaultChannel(BoundedChannelOptions options)
+    {
+        this.channel = Channel.CreateBounded<T>(options);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultChannel{T}"/> class.
+    /// </summary>
+    /// <param name="options">
+    /// The options for the channel.
+    /// </param>
+    public DefaultChannel(UnboundedChannelOptions options)
+    {
+        this.channel = Channel.CreateUnbounded<T>(options);
     }
 
     /// <inheritdoc/>

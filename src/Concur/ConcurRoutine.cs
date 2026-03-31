@@ -59,39 +59,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    action();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                action();
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    action();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -104,39 +87,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func();
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -153,41 +119,23 @@ public static class ConcurRoutine
         var channel = new DefaultChannel<T>(capacity);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await producer(channel);
-                }
-                catch (Exception e)
-                {
-                    await channel.FailAsync(e);
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await producer(channel);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await producer(channel);
-                }
-                catch (Exception e)
-                {
-                    await channel.FailAsync(e);
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await channel.FailAsync(e);
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
 
         return channel;
     }
@@ -212,44 +160,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    action();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                action();
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    action();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -270,44 +197,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func();
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func();
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     #endregion
@@ -324,39 +230,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -370,39 +259,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -417,39 +289,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -465,39 +320,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -514,39 +352,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -564,39 +385,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -615,39 +419,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -667,39 +454,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     #endregion
@@ -717,39 +487,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -764,39 +517,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -812,39 +548,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -861,39 +580,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -911,39 +613,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -962,39 +647,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1014,39 +682,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1067,39 +718,22 @@ public static class ConcurRoutine
     {
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                semaphore?.Release();
+            }
+        });
     }
 
     #endregion
@@ -1119,44 +753,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1173,44 +786,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1228,44 +820,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1284,44 +855,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1341,44 +891,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1399,44 +928,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1458,44 +966,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1518,44 +1005,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     #endregion
@@ -1581,44 +1047,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1641,44 +1086,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1702,44 +1126,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1764,44 +1167,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1827,44 +1209,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1891,44 +1252,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5, p6);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -1956,44 +1296,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5, p6, p7);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     /// <summary>
@@ -2033,44 +1352,23 @@ public static class ConcurRoutine
         wg.Add(1);
         var semaphore = options?.GetOrCreateSemaphore();
 
-        if (semaphore is null)
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            if (semaphore is not null) await semaphore.WaitAsync();
+            try
             {
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                }
-            });
-        }
-        else
-        {
-            _ = Task.Run(async () =>
+                await func(p1, p2, p3, p4, p5, p6, p7, p8);
+            }
+            catch (Exception e)
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
-                }
-                catch (Exception e)
-                {
-                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
-                }
-                finally
-                {
-                    wg.Done();
-                    semaphore.Release();
-                }
-            });
-        }
+                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+            }
+            finally
+            {
+                wg.Done();
+                semaphore?.Release();
+            }
+        });
     }
 
     #endregion
