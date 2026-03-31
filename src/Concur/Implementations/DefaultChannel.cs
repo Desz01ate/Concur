@@ -57,19 +57,6 @@ public sealed class DefaultChannel<T> : IChannel<T, DefaultChannel<T>>
         return ValueTask.CompletedTask;
     }
 
-    /// <inheritdoc />
-    public static DefaultChannel<T> operator <<(DefaultChannel<T> channel, T item)
-    {
-        channel.channel.Writer.WriteAsync(item).AsTask().Wait();
-        return channel;
-    }
-
-    /// <inheritdoc />
-    public static T operator -(DefaultChannel<T> channel)
-    {
-        return channel.channel.Reader.ReadAsync().AsTask().GetAwaiter().GetResult();
-    }
-
     /// <inheritdoc/>
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {

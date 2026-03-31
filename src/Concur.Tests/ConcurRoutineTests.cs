@@ -102,8 +102,7 @@ public class ConcurRoutineTests
         {
             foreach (var value in values)
             {
-                // await chan.WriteAsync(value);
-                _ = chan << value;
+                await chan.WriteAsync(value);
             }
         };
 
