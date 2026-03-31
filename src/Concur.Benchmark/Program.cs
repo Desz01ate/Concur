@@ -18,7 +18,8 @@ public class GoBenchmark
     private const int Iterations = 1_000_000;
     private const int Concurrency = 16;
     private const int ExpectedSum = Iterations * Concurrency;
-    private readonly static BoundedChannelOptions ChannelOptions = new(1024)
+    private const int ChannelCapacity = 1024;
+    private readonly static BoundedChannelOptions ChannelOptions = new(ChannelCapacity)
     {
         FullMode = BoundedChannelFullMode.Wait,
         SingleReader = true,
@@ -29,6 +30,37 @@ public class GoBenchmark
     {
         var wg = new WaitGroup();
         var channel = new DefaultChannel<int>(ChannelOptions);
+
+        for (var i = 0; i < Concurrency; i++)
+        {
+            Go(wg, async ch =>
+            {
+                for (var j = 0; j < Iterations; j++)
+                {
+                    await ch.WriteAsync(1);
+                }
+            }, channel);
+        }
+
+        Go(async () =>
+        {
+            await wg.WaitAsync();
+            await channel.CompleteAsync();
+        });
+
+        var sum = await channel.SumAsync();
+
+        if (sum != ExpectedSum)
+        {
+            throw new Exception("Sum is not correct");
+        }
+    }
+
+    [Benchmark]
+    public async Task MpscBoundedChannel_WithWaitGroup()
+    {
+        var wg = new WaitGroup();
+        var channel = new MpscBoundedChannel<int>(capacity: ChannelCapacity, stripeCount: 4);
 
         for (var i = 0; i < Concurrency; i++)
         {

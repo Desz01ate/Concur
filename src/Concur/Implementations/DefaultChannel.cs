@@ -9,7 +9,7 @@ using Abstractions;
 /// supporting both bounded and unbounded channel behaviors.
 /// </summary>
 /// <typeparam name="T">The type of data handled by the channel.</typeparam>
-public sealed class DefaultChannel<T> : IChannel<T, DefaultChannel<T>>
+public sealed class DefaultChannel<T> : IChannel<T>
 {
     private readonly Channel<T> channel;
 

@@ -62,6 +62,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 action();
@@ -90,6 +91,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func();
@@ -110,18 +112,22 @@ public static class ConcurRoutine
     /// The producer is responsible for completing the channel when it's done.
     /// </summary>
     /// <param name="producer">The function that produces values and writes them to the channel.</param>
-    /// <param name="capacity">Optional capacity for a bounded channel. If null, an unbounded channel is created.</param>
     /// <param name="options">Optional configuration options for the Go routine.</param>
+    /// <param name="channelFactory">Optional factory function to create the channel. If null, a default channel is created.</param>
     /// <typeparam name="T">The type of data in the channel.</typeparam>
     /// <returns>A IConcurChannel that a consumer can read from.</returns>
-    public static IChannel<T, DefaultChannel<T>> Go<T>(Func<DefaultChannel<T>, Task> producer, int? capacity = null, GoOptions? options = null)
+    public static IChannel<T> Go<T>(
+        Func<IChannel<T>, Task> producer,
+        GoOptions? options = null,
+        Func<IChannel<T>>? channelFactory = null)
     {
-        var channel = new DefaultChannel<T>(capacity);
+        var channel = channelFactory != null? channelFactory() : new DefaultChannel<T>();
         var semaphore = options?.GetOrCreateSemaphore();
 
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await producer(channel);
@@ -163,6 +169,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 action();
@@ -200,6 +207,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func();
@@ -233,6 +241,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p);
@@ -262,6 +271,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2);
@@ -292,6 +302,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3);
@@ -323,6 +334,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4);
@@ -355,6 +367,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5);
@@ -388,6 +401,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5, p6);
@@ -422,6 +436,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5, p6, p7);
@@ -457,6 +472,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5, p6, p7, p8);
@@ -490,6 +506,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p);
@@ -520,6 +537,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2);
@@ -551,6 +569,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3);
@@ -583,6 +602,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4);
@@ -616,6 +636,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5);
@@ -650,6 +671,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5, p6);
@@ -685,6 +707,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5, p6, p7);
@@ -721,6 +744,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5, p6, p7, p8);
@@ -756,6 +780,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p);
@@ -789,6 +814,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2);
@@ -823,6 +849,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3);
@@ -858,6 +885,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4);
@@ -894,6 +922,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5);
@@ -931,6 +960,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5, p6);
@@ -969,6 +999,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5, p6, p7);
@@ -1008,6 +1039,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 func(p1, p2, p3, p4, p5, p6, p7, p8);
@@ -1050,6 +1082,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p);
@@ -1089,6 +1122,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2);
@@ -1129,6 +1163,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3);
@@ -1170,6 +1205,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4);
@@ -1212,6 +1248,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5);
@@ -1255,6 +1292,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5, p6);
@@ -1299,6 +1337,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5, p6, p7);
@@ -1355,6 +1394,7 @@ public static class ConcurRoutine
         _ = Task.Run(async () =>
         {
             if (semaphore is not null) await semaphore.WaitAsync();
+
             try
             {
                 await func(p1, p2, p3, p4, p5, p6, p7, p8);

@@ -136,7 +136,7 @@ public class ConcurRoutineTests
         var values = new[] { 1, 2, 3, 4, 5 };
 
         // Act
-        var channelReader = Go<int>(async chan =>
+        var channelReader = Go(async chan =>
             {
                 foreach (var value in values)
                 {
@@ -146,11 +146,62 @@ public class ConcurRoutineTests
 
                 await chan.CompleteAsync();
             },
-            capacity: 10);
+            channelFactory: static () => new DefaultChannel<int>(10));
 
         // Assert
         var collected = await channelReader.ToListAsync();
         Assert.Equal(values, collected);
+    }
+
+    [Fact]
+    public async Task Go_WithChannelAbstractionFactory_ProducesValues()
+    {
+        // Arrange
+        var values = new[] { 1, 2, 3, 4, 5 };
+
+        // Act
+        var channelReader = Go(async channel =>
+            {
+                foreach (var value in values)
+                {
+                    await channel.WriteAsync(value);
+                }
+
+                await channel.CompleteAsync();
+            },
+            channelFactory: static () => new MpscBoundedChannel<int>(capacity: 16));
+
+        // Assert
+        var collected = await channelReader.ToListAsync();
+        Assert.Equal(values.Length, collected.Count);
+        Assert.Equal(values.Sum(), collected.Sum());
+    }
+
+    [Fact]
+    public async Task Go_WithChannelAbstractionFactory_WhenProducerThrows_ChannelFails()
+    {
+        // Arrange
+        var expected = new InvalidOperationException("fail");
+
+        // Act
+        var channelReader = Go(async channel =>
+            {
+                await channel.WriteAsync(1);
+                throw expected;
+            },
+            channelFactory: static () => new MpscBoundedChannel<int>(capacity: 16));
+
+        // Assert
+        await using var enumerator = channelReader.GetAsyncEnumerator();
+        Assert.True(await enumerator.MoveNextAsync());
+        Assert.Equal(1, enumerator.Current);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await enumerator.MoveNextAsync();
+        });
+
+        Assert.Same(expected, thrown);
     }
 
     [Fact]

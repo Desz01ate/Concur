@@ -3,7 +3,7 @@ namespace Concur.Tests.Channels;
 using System.Collections.Concurrent;
 using Abstractions;
 
-public sealed class QueueChannel<T> : IChannel<T, QueueChannel<T>>
+public sealed class QueueChannel<T> : IChannel<T>
 {
     private readonly ConcurrentQueue<T> queue;
     private readonly SemaphoreSlim semaphore;
