@@ -7,19 +7,36 @@ namespace Concur;
 /// At the same time, Wait can be used to block until all routines have finished.
 /// A WaitGroup must not be copied after first use.
 /// </summary>
+/// <remarks>
+/// This implementation is lock-free using an immutable state object
+/// swapped atomically via <see cref="Interlocked.CompareExchange{T}"/>.
+/// All operations are linearizable. Add/Done have their linearization point
+/// at the successful CAS; WaitAsync/Wait linearize at the state read.
+/// </remarks>
 public sealed class WaitGroup
 {
-    private readonly SemaphoreSlim semaphore = new(1, 1);
-    private int count;
-    private TaskCompletionSource<bool> tcs;
+    private sealed class State
+    {
+        public readonly int Count;
+        public readonly TaskCompletionSource<bool> Tcs;
+
+        public State(int count, TaskCompletionSource<bool> tcs)
+        {
+            this.Count = count;
+            this.Tcs = tcs;
+        }
+    }
+
+    private State state;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WaitGroup"/> class.
     /// </summary>
     public WaitGroup()
     {
-        this.tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        this.tcs.SetResult(true);
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        tcs.SetResult(true);
+        this.state = new State(0, tcs);
     }
 
     /// <summary>
@@ -31,31 +48,41 @@ public sealed class WaitGroup
     /// <exception cref="InvalidOperationException">Thrown when the counter goes negative.</exception>
     public void Add(int delta)
     {
-        this.semaphore.Wait();
+        SpinWait spin = default;
 
-        try
+        while (true)
         {
-            if (this.tcs.Task.IsCompleted && delta > 0)
-            {
-                this.tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            }
+            var current = this.state;
+            var newCount = current.Count + delta;
 
-            this.count += delta;
-
-            if (this.count < 0)
+            if (newCount < 0)
             {
-                this.count = 0; // Reset to 0 to avoid issues with subsequent calls.
                 throw new InvalidOperationException("WaitGroup counter cannot be negative.");
             }
 
-            if (this.count == 0)
+            State next;
+
+            if (current.Count == 0 && delta > 0)
             {
-                this.tcs.TrySetResult(true);
+                var freshTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                next = new State(newCount, freshTcs);
             }
-        }
-        finally
-        {
-            this.semaphore.Release();
+            else
+            {
+                next = new State(newCount, current.Tcs);
+            }
+
+            if (Interlocked.CompareExchange(ref this.state, next, current) == current)
+            {
+                if (newCount == 0)
+                {
+                    current.Tcs.TrySetResult(true);
+                }
+
+                return;
+            }
+
+            spin.SpinOnce();
         }
     }
 
@@ -70,22 +97,9 @@ public sealed class WaitGroup
     /// <summary>
     /// Blocks until the WaitGroup counter is zero asynchronously.
     /// </summary>
-    public async Task WaitAsync()
+    public Task WaitAsync()
     {
-        Task task;
-
-        await this.semaphore.WaitAsync();
-
-        try
-        {
-            task = this.tcs.Task;
-        }
-        finally
-        {
-            this.semaphore.Release();
-        }
-
-        await task;
+        return this.state.Tcs.Task;
     }
 
     /// <summary>
@@ -93,19 +107,6 @@ public sealed class WaitGroup
     /// </summary>
     public void Wait()
     {
-        Task task;
-
-        this.semaphore.Wait();
-
-        try
-        {
-            task = this.tcs.Task;
-        }
-        finally
-        {
-            this.semaphore.Release();
-        }
-
-        task.GetAwaiter().GetResult();
+        this.state.Tcs.Task.GetAwaiter().GetResult();
     }
 }
