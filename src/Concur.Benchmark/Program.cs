@@ -9,8 +9,8 @@ using static Concur.ConcurRoutine;
 [MemoryDiagnoser]
 [ThreadingDiagnoser]
 [DisassemblyDiagnoser(printSource: true, maxDepth: 2)]
-[IterationCount(100)]
-[WarmupCount(100)]
+[IterationCount(10)]
+[WarmupCount(5)]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [MinColumn, MaxColumn, MeanColumn, MedianColumn]
 public class GoBenchmark
@@ -18,12 +18,17 @@ public class GoBenchmark
     private const int Iterations = 1_000_000;
     private const int Concurrency = 16;
     private const int ExpectedSum = Iterations * Concurrency;
+    private readonly static BoundedChannelOptions ChannelOptions = new(1024)
+    {
+        FullMode = BoundedChannelFullMode.Wait,
+        SingleReader = true,
+    };
 
     [Benchmark]
     public async Task Goroutine_WithWaitGroup()
     {
         var wg = new WaitGroup();
-        var channel = new DefaultChannel<int>();
+        var channel = new DefaultChannel<int>(ChannelOptions);
 
         for (var i = 0; i < Concurrency; i++)
         {
@@ -53,7 +58,7 @@ public class GoBenchmark
     [Benchmark(Baseline = true)]
     public async Task Channel_WithTpl()
     {
-        var channel = Channel.CreateUnbounded<int>();
+        var channel = Channel.CreateBounded<int>(ChannelOptions);
         var writer = channel.Writer;
         var reader = channel.Reader;
 
