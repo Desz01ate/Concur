@@ -64,6 +64,47 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
     }
 
     [Fact]
+    public async Task GetAsyncEnumerator_WhenCancelled_ExitsGracefullyEvenIfChannelIsFailingButNotYetDrained()
+    {
+        const int completionStateFailing = 2;
+
+        var channel = new MpmcBoundedChannel<int>(capacity: 1, shardCount: 1);
+        var expected = new InvalidOperationException("boom");
+
+        SetPrivateField(channel, "completionException", expected);
+        SetPrivateField(channel, "completionState", completionStateFailing);
+        SetPrivateField(channel, "pendingItems", 1L);
+
+        using var cts = new CancellationTokenSource();
+        await using var enumerator = channel.GetAsyncEnumerator(cts.Token);
+
+        var moveNextTask = enumerator.MoveNextAsync().AsTask();
+
+        Assert.False(moveNextTask.IsCompleted);
+
+        cts.Cancel();
+
+        Assert.False(await moveNextTask);
+    }
+
+    [Fact]
+    public async Task WriteAsync_WhenCancellationOccursWhileBlockedOnFullChannel_ThrowsOperationCanceledException()
+    {
+        var channel = new MpmcBoundedChannel<int>(capacity: 1, shardCount: 1);
+        await channel.WriteAsync(1);
+
+        using var cts = new CancellationTokenSource();
+        var blockedWrite = channel.WriteAsync(2, cts.Token).AsTask();
+
+        await Task.Delay(50);
+        Assert.False(blockedWrite.IsCompleted);
+
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => blockedWrite);
+    }
+
+    [Fact]
     public async Task WriteRead_WithMultipleProducersAndConsumers_ConsumesAllItemsExactlyOnce()
     {
         const int producers = 8;
