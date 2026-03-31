@@ -60,6 +60,9 @@ dlldata.c
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
 
+# Local git worktrees
+.worktrees/
+
 # .NET
 project.lock.json
 project.fragment.lock.json
