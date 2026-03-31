@@ -4,7 +4,7 @@ using System.Threading.Channels;
 using Abstractions;
 
 /// <summary>
-/// Provides a default implementation of the <see cref="Concur.Abstractions.IChannel{T}"/> interface.
+/// Provides a default implementation of the <see cref="IChannel{T, TSelf}"/> interface.
 /// This class uses the <see cref="System.Threading.Channels.Channel{T}"/> for its underlying implementation,
 /// supporting both bounded and unbounded channel behaviors.
 /// </summary>
@@ -35,13 +35,13 @@ public sealed class DefaultChannel<T> : IChannel<T, DefaultChannel<T>>
                 : Channel.CreateUnbounded<T>();
     }
 
-    // <inheritdoc/>
+    /// <inheritdoc/>
     public ValueTask WriteAsync(T item, CancellationToken cancellationToken = default)
     {
         return this.channel.Writer.WriteAsync(item, cancellationToken);
     }
 
-    // <inheritdoc/>
+    /// <inheritdoc/>
     public ValueTask CompleteAsync(CancellationToken cancellationToken = default)
     {
         this.channel.Writer.Complete();
@@ -49,7 +49,7 @@ public sealed class DefaultChannel<T> : IChannel<T, DefaultChannel<T>>
         return ValueTask.CompletedTask;
     }
 
-    // <inheritdoc/>
+    /// <inheritdoc/>
     public ValueTask FailAsync(Exception ex, CancellationToken cancellationToken = default)
     {
         this.channel.Writer.TryComplete(ex);
@@ -57,20 +57,20 @@ public sealed class DefaultChannel<T> : IChannel<T, DefaultChannel<T>>
         return ValueTask.CompletedTask;
     }
 
-    // <inheritdoc />
+    /// <inheritdoc />
     public static DefaultChannel<T> operator <<(DefaultChannel<T> channel, T item)
     {
         channel.channel.Writer.WriteAsync(item).AsTask().Wait();
         return channel;
     }
 
-    // <inheritdoc />
+    /// <inheritdoc />
     public static T operator -(DefaultChannel<T> channel)
     {
         return channel.channel.Reader.ReadAsync().AsTask().GetAwaiter().GetResult();
     }
 
-    // <inheritdoc/>
+    /// <inheritdoc/>
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
         return this.channel.Reader.ReadAllAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);

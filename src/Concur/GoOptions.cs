@@ -7,7 +7,7 @@ using Abstractions;
 /// </summary>
 public sealed class GoOptions
 {
-    private SemaphoreSlim? InternalSemaphore;
+    private SemaphoreSlim? internalSemaphore;
     private readonly object lockObject = new();
 
     /// <summary>
@@ -51,10 +51,10 @@ public sealed class GoOptions
         {
             lock (this.lockObject)
             {
-                this.InternalSemaphore ??= new SemaphoreSlim(this.MaxConcurrency.Value, this.MaxConcurrency.Value);
+                this.internalSemaphore ??= new SemaphoreSlim(this.MaxConcurrency.Value, this.MaxConcurrency.Value);
             }
         }
 
-        return this.InternalSemaphore;
+        return this.internalSemaphore;
     }
 }
