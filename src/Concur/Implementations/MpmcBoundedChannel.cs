@@ -8,12 +8,17 @@ using Abstractions;
 /// <typeparam name="T">The payload type.</typeparam>
 public sealed class MpmcBoundedChannel<T> : IChannel<T>
 {
+    private const int CompletionStateOpen = 0;
+    private const int CompletionStateCompleted = 1;
+    private const int CompletionStateFailing = 2;
+    private const int CompletionStateFailed = 3;
     private const int WriteSpinCount = 32;
 
     private readonly Shard[] shards;
     private readonly SemaphoreSlim availableSlots;
     private readonly SemaphoreSlim availableItems;
     private readonly CancellationTokenSource completionSignal;
+    private readonly TaskCompletionSource<bool> drainedSignal;
 
     private readonly int shardCount;
 
@@ -47,6 +52,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         this.availableSlots = new SemaphoreSlim(capacity, capacity);
         this.availableItems = new SemaphoreSlim(0, int.MaxValue);
         this.completionSignal = new CancellationTokenSource();
+        this.drainedSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     /// <inheritdoc />
@@ -90,12 +96,16 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     /// <inheritdoc />
     public ValueTask CompleteAsync(CancellationToken cancellationToken = default)
     {
-        if (Interlocked.Exchange(ref this.completionState, 1) != 0)
+        if (Interlocked.CompareExchange(
+                ref this.completionState,
+                CompletionStateCompleted,
+                CompletionStateOpen) != CompletionStateOpen)
         {
             return ValueTask.CompletedTask;
         }
 
         this.completionSignal.Cancel();
+        this.SignalDrainedIfCompleted();
         return ValueTask.CompletedTask;
     }
 
@@ -104,13 +114,18 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     {
         ArgumentNullException.ThrowIfNull(ex);
 
-        if (Interlocked.Exchange(ref this.completionState, 1) != 0)
+        if (Interlocked.CompareExchange(
+                ref this.completionState,
+                CompletionStateFailing,
+                CompletionStateOpen) != CompletionStateOpen)
         {
             return ValueTask.CompletedTask;
         }
 
-        this.completionException = ex;
+        Volatile.Write(ref this.completionException, ex);
+        Volatile.Write(ref this.completionState, CompletionStateFailed);
         this.completionSignal.Cancel();
+        this.SignalDrainedIfCompleted();
         return ValueTask.CompletedTask;
     }
 
@@ -150,7 +165,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         return false;
     }
 
-    private bool TryRead(out T item)
+    private bool TryDequeueReserved(out T item)
     {
         var start = (Interlocked.Increment(ref this.readCursor) & int.MaxValue) % this.shardCount;
         for (var i = 0; i < this.shardCount; i++)
@@ -161,8 +176,14 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
                 continue;
             }
 
-            Interlocked.Decrement(ref this.pendingItems);
+            var remainingItems = Interlocked.Decrement(ref this.pendingItems);
             this.availableSlots.Release();
+
+            if (remainingItems == 0)
+            {
+                this.SignalDrainedIfCompleted();
+            }
+
             return true;
         }
 
@@ -172,16 +193,32 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
     private bool IsCompletedAndDrained()
     {
-        return Volatile.Read(ref this.completionState) != 0 &&
+        var completionState = Volatile.Read(ref this.completionState);
+        return (completionState == CompletionStateCompleted || completionState == CompletionStateFailed) &&
             Interlocked.Read(ref this.pendingItems) == 0;
     }
 
     private void ThrowIfCompleted()
     {
-        if (Volatile.Read(ref this.completionState) != 0)
+        if (Volatile.Read(ref this.completionState) != CompletionStateOpen)
         {
             throw new InvalidOperationException("Cannot write to a completed channel.");
         }
+    }
+
+    private void SignalDrainedIfCompleted()
+    {
+        if (Volatile.Read(ref this.completionState) == CompletionStateOpen)
+        {
+            return;
+        }
+
+        if (Interlocked.Read(ref this.pendingItems) != 0)
+        {
+            return;
+        }
+
+        this.drainedSignal.TrySetResult(true);
     }
 
     private async ValueTask WaitForSlotAsync(CancellationToken cancellationToken)
@@ -219,6 +256,50 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         }
     }
 
+    private async ValueTask<ConsumerWaitResult> WaitForItemPermitAsync(CancellationToken cancellationToken)
+    {
+        if (this.availableItems.Wait(0))
+        {
+            return ConsumerWaitResult.ItemPermitAcquired;
+        }
+
+        if (this.IsCompletedAndDrained())
+        {
+            return ConsumerWaitResult.ChannelCompleted;
+        }
+
+        if (Volatile.Read(ref this.completionState) != CompletionStateOpen)
+        {
+            try
+            {
+                await this.drainedSignal.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return ConsumerWaitResult.ChannelCompleted;
+            }
+            catch (OperationCanceledException)
+            {
+                return ConsumerWaitResult.ConsumerCanceled;
+            }
+        }
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            this.completionSignal.Token);
+
+        try
+        {
+            await this.availableItems.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+            return ConsumerWaitResult.ItemPermitAcquired;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ConsumerWaitResult.ConsumerCanceled;
+        }
+        catch (OperationCanceledException)
+        {
+            return ConsumerWaitResult.Retry;
+        }
+    }
+
     private sealed class Enumerator : IAsyncEnumerator<T>
     {
         private readonly MpmcBoundedChannel<T> owner;
@@ -236,37 +317,35 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         {
             while (true)
             {
-                if (this.owner.TryRead(out var item))
+                var waitResult = await this.owner.WaitForItemPermitAsync(this.cancellationToken).ConfigureAwait(false);
+                switch (waitResult)
                 {
-                    this.current = item;
-                    return true;
-                }
+                    case ConsumerWaitResult.ItemPermitAcquired:
+                        if (!this.owner.TryDequeueReserved(out var item))
+                        {
+                            throw new InvalidOperationException("Item permit acquired without a readable item.");
+                        }
 
-                if (this.owner.IsCompletedAndDrained())
-                {
-                    if (this.owner.completionException is not null)
-                    {
-                        throw this.owner.completionException;
-                    }
+                        this.current = item;
+                        return true;
 
-                    return false;
-                }
+                    case ConsumerWaitResult.ChannelCompleted:
+                        var completionException = Volatile.Read(ref this.owner.completionException);
+                        if (completionException is not null)
+                        {
+                            throw completionException;
+                        }
 
-                try
-                {
-                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                        this.cancellationToken,
-                        this.owner.completionSignal.Token);
+                        return false;
 
-                    await this.owner.availableItems.WaitAsync(linkedCts.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (this.cancellationToken.IsCancellationRequested)
-                {
-                    return false;
-                }
-                catch (OperationCanceledException)
-                {
-                    continue;
+                    case ConsumerWaitResult.ConsumerCanceled:
+                        return false;
+
+                    case ConsumerWaitResult.Retry:
+                        continue;
+
+                    default:
+                        throw new InvalidOperationException("Unknown consumer wait result.");
                 }
             }
         }
@@ -358,6 +437,14 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
                 spin.SpinOnce();
             }
         }
+    }
+
+    private enum ConsumerWaitResult
+    {
+        ItemPermitAcquired,
+        ChannelCompleted,
+        ConsumerCanceled,
+        Retry,
     }
 
     private sealed class Slot

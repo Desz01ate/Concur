@@ -1,6 +1,7 @@
 namespace Concur.Tests;
 
 using System.Collections.Concurrent;
+using System.Reflection;
 using Abstractions;
 using Implementations;
 
@@ -94,5 +95,109 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
 
         Assert.Equal(producers * perProducer, bag.Count);
         Assert.Equal(producers * perProducer, bag.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task FailAsync_AfterDrain_AlwaysPublishesFailureException()
+    {
+        const int iterations = 2_000;
+
+        for (var i = 0; i < iterations; i++)
+        {
+            var channel = new MpmcBoundedChannel<int>(capacity: 1, shardCount: 1);
+            var expected = new InvalidOperationException($"boom-{i}");
+
+            await channel.WriteAsync(i);
+
+            await using var enumerator = channel.GetAsyncEnumerator();
+            Assert.True(await enumerator.MoveNextAsync());
+            Assert.Equal(i, enumerator.Current);
+
+            using var start = new ManualResetEventSlim(false);
+            var moveNextTask = Task.Run(
+                async () =>
+                {
+                    start.Wait();
+                    return await Record.ExceptionAsync(
+                        () => enumerator.MoveNextAsync().AsTask());
+                });
+
+            var failTask = Task.Run(
+                async () =>
+                {
+                    start.Wait();
+                    await channel.FailAsync(expected);
+                });
+
+            start.Set();
+
+            await failTask;
+
+            var exception = await moveNextTask;
+            var thrown = Assert.IsType<InvalidOperationException>(exception);
+            Assert.Same(expected, thrown);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WriteAsync_WhenBlocked_TerminatesWhenChannelCompletes(bool failChannel)
+    {
+        var channel = new MpmcBoundedChannel<int>(capacity: 1, shardCount: 1);
+        await channel.WriteAsync(1);
+
+        var blockedWrite = channel.WriteAsync(2).AsTask();
+        await Task.Delay(50);
+
+        Assert.False(blockedWrite.IsCompleted);
+
+        if (failChannel)
+        {
+            await channel.FailAsync(new InvalidOperationException("boom"));
+        }
+        else
+        {
+            await channel.CompleteAsync();
+        }
+
+        var completed = await Task.WhenAny(blockedWrite, Task.Delay(TimeSpan.FromSeconds(1)));
+        Assert.Same(blockedWrite, completed);
+
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => blockedWrite);
+    }
+
+    [Fact]
+    public async Task ReadChurn_DoesNotLeakAvailableItemPermits()
+    {
+        const int iterations = 4_096;
+
+        var channel = new MpmcBoundedChannel<int>(capacity: 1, shardCount: 1);
+
+        await using var enumerator = channel.GetAsyncEnumerator();
+
+        for (var i = 0; i < iterations; i++)
+        {
+            await channel.WriteAsync(i);
+            Assert.True(await enumerator.MoveNextAsync());
+            Assert.Equal(i, enumerator.Current);
+        }
+
+        Assert.Equal(0, GetAvailableItemPermitCount(channel));
+
+        await channel.CompleteAsync();
+        Assert.False(await enumerator.MoveNextAsync());
+    }
+
+    private static int GetAvailableItemPermitCount(MpmcBoundedChannel<int> channel)
+    {
+        var field = typeof(MpmcBoundedChannel<int>).GetField(
+            "availableItems",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+
+        var semaphore = Assert.IsType<SemaphoreSlim>(field.GetValue(channel));
+        return semaphore.CurrentCount;
     }
 }
