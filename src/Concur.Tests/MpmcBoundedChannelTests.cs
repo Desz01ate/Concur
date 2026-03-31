@@ -139,6 +139,66 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
     }
 
     [Fact]
+    public async Task WriteRead_WithHighContention_ProducersAndConsumersMuchGreaterThanShards_DrainsAllItems()
+    {
+        const int producers = 32;
+        const int consumers = 32;
+        const int perProducer = 200;
+
+        var channel = new MpmcBoundedChannel<int>(capacity: 1024, shardCount: 4);
+        var total = 0;
+
+        var consumerTasks = Enumerable.Range(0, consumers).Select(async _ =>
+        {
+            await foreach (var item in channel)
+            {
+                Interlocked.Add(ref total, item);
+            }
+        }).ToArray();
+
+        var producerTasks = Enumerable.Range(0, producers).Select(async _ =>
+        {
+            for (var i = 0; i < perProducer; i++)
+            {
+                await channel.WriteAsync(1);
+            }
+        }).ToArray();
+
+        await Task.WhenAll(producerTasks);
+        await channel.CompleteAsync();
+        await Task.WhenAll(consumerTasks);
+
+        Assert.Equal(producers * perProducer, total);
+    }
+
+    [Fact]
+    public async Task WriteAsync_WithConcurrentWriters_BlocksAtLogicalCapacityUntilReadsReleaseSlots()
+    {
+        var channel = new MpmcBoundedChannel<int>(capacity: 2, shardCount: 2);
+        await channel.WriteAsync(1);
+        await channel.WriteAsync(2);
+
+        var thirdWrite = channel.WriteAsync(3).AsTask();
+        var fourthWrite = channel.WriteAsync(4).AsTask();
+
+        await Task.Delay(50);
+        Assert.False(thirdWrite.IsCompleted);
+        Assert.False(fourthWrite.IsCompleted);
+
+        await using var enumerator = channel.GetAsyncEnumerator();
+        Assert.True(await enumerator.MoveNextAsync());
+        Assert.True(await enumerator.MoveNextAsync());
+
+        var allWrites = Task.WhenAll(thirdWrite, fourthWrite);
+        var completed = await Task.WhenAny(allWrites, Task.Delay(TimeSpan.FromSeconds(1)));
+        Assert.Same(allWrites, completed);
+        Assert.True(thirdWrite.IsCompleted);
+        Assert.True(fourthWrite.IsCompleted);
+
+        await channel.CompleteAsync();
+    }
+
+    [Fact]
     public async Task FailAsync_AfterDrain_AlwaysPublishesFailureException()
     {
         const int iterations = 2_000;

@@ -13,6 +13,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     private const int CompletionStateFailing = 2;
     private const int CompletionStateFailed = 3;
     private const int WriteSpinCount = 32;
+    private const int ReadSpinCount = 16;
 
     private readonly Shard[] shards;
     private readonly SemaphoreSlim availableSlots;
@@ -23,7 +24,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     private readonly int shardCount;
 
     private int writeCursor;
-    private int readCursor;
+    private long nextReaderShardSeed;
     private long pendingItems;
 
     private int completionState;
@@ -50,7 +51,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         this.shardCount = Math.Min(requestedShardCount, capacity);
         this.shards = CreateShards(capacity, this.shardCount);
         this.availableSlots = new SemaphoreSlim(capacity, capacity);
-        this.availableItems = new SemaphoreSlim(0, int.MaxValue);
+        this.availableItems = new SemaphoreSlim(0, capacity);
         this.completionSignal = new CancellationTokenSource();
         this.drainedSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
     }
@@ -73,6 +74,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
             this.ThrowIfCompleted();
 
             var spin = new SpinWait();
+            var spinsSinceYield = 0;
             while (true)
             {
                 if (this.TryEnqueue(item))
@@ -84,6 +86,15 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
                 this.ThrowIfCompleted();
                 spin.SpinOnce();
+                spinsSinceYield++;
+
+                if (spinsSinceYield < WriteSpinCount)
+                {
+                    continue;
+                }
+
+                spinsSinceYield = 0;
+                await Task.Yield();
             }
         }
         catch
@@ -138,16 +149,31 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     private static Shard[] CreateShards(int capacity, int shardCount)
     {
         var shards = new Shard[shardCount];
-        var baseCapacity = capacity / shardCount;
-        var remainder = capacity % shardCount;
+        var basePerShard = (capacity + shardCount - 1) / shardCount;
+        var shardCapacity = NextPowerOfTwo(Math.Max(2, basePerShard));
 
         for (var i = 0; i < shardCount; i++)
         {
-            var shardCapacity = baseCapacity + (i < remainder ? 1 : 0);
             shards[i] = new Shard(shardCapacity);
         }
 
         return shards;
+    }
+
+    private static int NextPowerOfTwo(int value)
+    {
+        if (value <= 1)
+        {
+            return 1;
+        }
+
+        value--;
+        value |= value >> 1;
+        value |= value >> 2;
+        value |= value >> 4;
+        value |= value >> 8;
+        value |= value >> 16;
+        return value + 1;
     }
 
     private bool TryEnqueue(T item)
@@ -165,12 +191,11 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         return false;
     }
 
-    private bool TryDequeueReserved(out T item)
+    private bool TryDequeueReserved(int startShard, out T item)
     {
-        var start = (Interlocked.Increment(ref this.readCursor) & int.MaxValue) % this.shardCount;
         for (var i = 0; i < this.shardCount; i++)
         {
-            var idx = (start + i) % this.shardCount;
+            var idx = (startShard + i) % this.shardCount;
             if (!this.shards[idx].TryDequeue(out item))
             {
                 continue;
@@ -263,9 +288,21 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
     private async ValueTask<ConsumerWaitResult> WaitForItemPermitAsync(CancellationToken cancellationToken)
     {
-        if (this.availableItems.Wait(0))
+        var spin = new SpinWait();
+        for (var i = 0; i < ReadSpinCount; i++)
         {
-            return ConsumerWaitResult.ItemPermitAcquired;
+            if (this.availableItems.Wait(0))
+            {
+                return ConsumerWaitResult.ItemPermitAcquired;
+            }
+
+            if (this.IsCompletedAndDrained())
+            {
+                return ConsumerWaitResult.ChannelCompleted;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            spin.SpinOnce();
         }
 
         if (this.IsCompletedAndDrained())
@@ -309,11 +346,13 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     {
         private readonly MpmcBoundedChannel<T> owner;
         private readonly CancellationToken cancellationToken;
+        private readonly int homeShard;
         private T current = default!;
         public Enumerator(MpmcBoundedChannel<T> owner, CancellationToken cancellationToken)
         {
             this.owner = owner;
             this.cancellationToken = cancellationToken;
+            this.homeShard = (int)(Interlocked.Increment(ref owner.nextReaderShardSeed) % owner.shardCount);
         }
 
         public T Current => this.current;
@@ -326,7 +365,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
                 switch (waitResult)
                 {
                     case ConsumerWaitResult.ItemPermitAcquired:
-                        if (!this.owner.TryDequeueReserved(out var item))
+                        if (!this.owner.TryDequeueReserved(this.homeShard, out var item))
                         {
                             throw new InvalidOperationException("Item permit acquired without a readable item.");
                         }
@@ -361,6 +400,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     private sealed class Shard
     {
         private readonly Slot[] slots;
+        private readonly int mask;
         private readonly int capacity;
 
         private long enqueuePos;
@@ -369,6 +409,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         public Shard(int capacity)
         {
             this.capacity = capacity;
+            this.mask = capacity - 1;
             this.slots = new Slot[capacity];
 
             for (var i = 0; i < capacity; i++)
@@ -383,7 +424,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
             while (true)
             {
                 var pos = Volatile.Read(ref this.enqueuePos);
-                var slot = this.slots[(int)(pos % this.capacity)];
+                var slot = this.slots[(int)pos & this.mask];
                 var sequence = Volatile.Read(ref slot.Sequence);
                 var delta = sequence - pos;
 
@@ -415,7 +456,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
             while (true)
             {
                 var pos = Volatile.Read(ref this.dequeuePos);
-                var slot = this.slots[(int)(pos % this.capacity)];
+                var slot = this.slots[(int)pos & this.mask];
                 var sequence = Volatile.Read(ref slot.Sequence);
                 var delta = sequence - (pos + 1);
 
