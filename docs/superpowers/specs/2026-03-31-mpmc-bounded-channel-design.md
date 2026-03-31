@@ -58,9 +58,8 @@ This preserves bounded memory globally and distributes contention locally.
 - `int completionState` (`0 = open`, `1 = completed/faulted`)
 - `Exception? completionException` (set only by first `FailAsync`)
 - `TaskCompletionSource completionSignal` (`RunContinuationsAsynchronously`)
-- `long nextWriterShardProbe` (global probe seed)
+- `long nextWriterShardProbe` (global seed; each write snapshots start shard via interlocked increment)
 - `long nextReaderShardSeed` (enumerator home-shard seed)
-- Optional diagnostics only (not correctness): contention counters, steal counters
 
 ### 4.2 Shard Structure
 
@@ -125,12 +124,13 @@ This is mandatory for correctness on x64 and ARM64.
    - fallback to `WaitForSlotOrCompletionAsync(token)` which races slot wait with completion signal.
 3. Re-check closed state after wake.
 4. Attempt enqueue into shards:
-   - Choose initial shard from thread-local probe seeded by `nextWriterShardProbe`.
+   - Choose initial shard start as `(int)(Interlocked.Increment(ref nextWriterShardProbe) % shardCount)`.
    - Probe all shards (rotating order) with lock-free enqueue attempts.
 5. If all shard attempts fail after full probe pass (transient contention case):
    - do bounded spin/yield retry loops while permit is held,
    - after retry budget exhausted, `await Task.Yield()` and retry probe.
    - **Never return the slot permit during open state**; permit implies eventual enqueue progress.
+   - Retry loop is intentionally unbounded until enqueue succeeds or channel transitions to completed/faulted.
 6. On success:
    - publish item using `Volatile.Write` on slot sequence,
    - release one `availableItems` permit.
@@ -191,6 +191,25 @@ Treat channel as drained when:
 
 Readers perform this check after failed dequeue and after wakeups.
 
+### 8.4 Wait-For-Completion Race Pattern
+
+`WaitForSlotOrCompletionAsync(token)` and `WaitForItemOrCompletionAsync(token)` must avoid
+permit leaks when completion races semaphore waits.
+
+Required rule:
+- Do **not** implement this as raw `Task.WhenAny(semaphore.WaitAsync(), completionSignal.Task)`
+  without cleanup, because the semaphore task can complete later and consume a permit.
+
+Recommended pattern:
+1. Fast-check completion state.
+2. Try immediate `semaphore.Wait(0)` fast path.
+3. Await `semaphore.WaitAsync(linkedToken)` where `linkedToken` is canceled by either:
+   - caller cancellation token, or
+   - `completionSignal` transition.
+4. If wake was due to completion, re-check channel state in caller loop and do not assume permit ownership.
+
+This ensures no unpaired semaphore acquisition is left behind.
+
 ## 9. Tail-Latency Optimizations
 
 - Bounded spin-before-block for both read/write paths.
@@ -223,6 +242,7 @@ Potential constructor shape:
 Sizing defaults:
 - `shardCount = min(Environment.ProcessorCount, 8 or 16)`
 - per-shard capacity computed using Section 4.3 formula.
+- No public `shardCapacity` override in v1 by design; keep external API minimal and auto-tuned.
 
 ## 12. Test Matrix
 
