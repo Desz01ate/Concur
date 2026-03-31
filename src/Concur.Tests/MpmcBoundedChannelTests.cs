@@ -139,6 +139,31 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
         }
     }
 
+    [Fact]
+    public async Task FailAsync_WhenLastDequeueSignalsDrainDuringFailurePublication_DoesNotAllowSilentCompletion()
+    {
+        const int completionStateFailing = 2;
+        const int completionStateFailed = 3;
+
+        var channel = new MpmcBoundedChannel<int>(capacity: 1, shardCount: 1);
+        var expected = new InvalidOperationException("boom");
+
+        SetPrivateField(channel, "completionState", completionStateFailing);
+        SignalDrainedIfCompleted(channel);
+
+        await using var enumerator = channel.GetAsyncEnumerator();
+        var moveNextTask = enumerator.MoveNextAsync().AsTask();
+
+        Assert.False(moveNextTask.IsCompleted);
+
+        SetPrivateField(channel, "completionException", expected);
+        SetPrivateField(channel, "completionState", completionStateFailed);
+        SignalDrainedIfCompleted(channel);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => moveNextTask);
+        Assert.Same(expected, thrown);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -199,5 +224,25 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
 
         var semaphore = Assert.IsType<SemaphoreSlim>(field.GetValue(channel));
         return semaphore.CurrentCount;
+    }
+
+    private static void SetPrivateField<TValue>(MpmcBoundedChannel<int> channel, string fieldName, TValue value)
+    {
+        var field = typeof(MpmcBoundedChannel<int>).GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+        field.SetValue(channel, value);
+    }
+
+    private static void SignalDrainedIfCompleted(MpmcBoundedChannel<int> channel)
+    {
+        var method = typeof(MpmcBoundedChannel<int>).GetMethod(
+            "SignalDrainedIfCompleted",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(method);
+        method.Invoke(channel, null);
     }
 }

@@ -194,7 +194,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     private bool IsCompletedAndDrained()
     {
         var completionState = Volatile.Read(ref this.completionState);
-        return (completionState == CompletionStateCompleted || completionState == CompletionStateFailed) &&
+        return IsTerminalCompletionState(completionState) &&
             Interlocked.Read(ref this.pendingItems) == 0;
     }
 
@@ -208,7 +208,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
     private void SignalDrainedIfCompleted()
     {
-        if (Volatile.Read(ref this.completionState) == CompletionStateOpen)
+        if (!IsTerminalCompletionState(Volatile.Read(ref this.completionState)))
         {
             return;
         }
@@ -219,6 +219,11 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         }
 
         this.drainedSignal.TrySetResult(true);
+    }
+
+    private static bool IsTerminalCompletionState(int completionState)
+    {
+        return completionState == CompletionStateCompleted || completionState == CompletionStateFailed;
     }
 
     private async ValueTask WaitForSlotAsync(CancellationToken cancellationToken)
