@@ -9,6 +9,13 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
         new MpmcBoundedChannel<int>(capacity);
 
     [Fact]
+    public void Constructor_WithDefaultShardCount_CreatesChannel()
+    {
+        var channel = new MpmcBoundedChannel<int>(capacity: 8);
+        Assert.NotNull(channel);
+    }
+
+    [Fact]
     public void Constructor_WithZeroCapacity_ThrowsArgumentOutOfRangeException() =>
         Assert.Throws<ArgumentOutOfRangeException>(() => new MpmcBoundedChannel<int>(0));
 
