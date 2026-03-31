@@ -149,4 +149,92 @@ public class WaitGroupTests
         await waitTask; // Wait for the task to complete
         Assert.True(waitTask.IsCompletedSuccessfully);
     }
+
+    [Fact]
+    public async Task WaitAsync_WithWaitGroupReuse_WaitsForAllWork()
+    {
+        // Verifies that WaitAsync correctly waits when the WaitGroup is reused
+        // across multiple batches. The race: when Done() brings count to 0 and
+        // completes tcs, a subsequent Add(1) creates a new tcs. Without
+        // synchronized reads, WaitAsync() could read the old completed tcs
+        // and return before the new batch finishes.
+
+        var failures = 0;
+        var iterations = 1000;
+
+        for (var i = 0; i < iterations; i++)
+        {
+            var wg = new WaitGroup();
+            var completed = 0;
+            var routineCount = 10;
+
+            // Batch 1: add and complete to put tcs into completed state
+            wg.Add(1);
+            wg.Done();
+
+            // Batch 2: add work using the correct Go pattern (Add before Task.Run)
+            for (var j = 0; j < routineCount; j++)
+            {
+                wg.Add(1);
+
+                _ = Task.Run(() =>
+                {
+                    Thread.SpinWait(100);
+                    Interlocked.Increment(ref completed);
+                    wg.Done();
+                });
+            }
+
+            await wg.WaitAsync();
+
+            if (Volatile.Read(ref completed) < routineCount)
+            {
+                failures++;
+            }
+        }
+
+        Assert.True(failures == 0,
+            $"WaitAsync() returned before all routines completed in {failures}/{iterations} iterations. " +
+            "This indicates a race condition where WaitAsync() reads a stale (already completed) TaskCompletionSource.");
+    }
+
+    [Fact]
+    public async Task WaitAsync_WithConcurrentAddAndWait_DoesNotReturnPrematurely()
+    {
+        // Tests the ConcurRoutine.Go pattern under high concurrency:
+        // Add(1) is called synchronously before Task.Run, then WaitAsync
+        // must correctly wait for all routines to complete.
+
+        var failures = 0;
+        var iterations = 1000;
+
+        for (var i = 0; i < iterations; i++)
+        {
+            var wg = new WaitGroup();
+            var completed = 0;
+            var routineCount = 20;
+
+            for (var j = 0; j < routineCount; j++)
+            {
+                wg.Add(1);
+
+                _ = Task.Run(() =>
+                {
+                    Thread.SpinWait(100);
+                    Interlocked.Increment(ref completed);
+                    wg.Done();
+                });
+            }
+
+            await wg.WaitAsync();
+
+            if (Volatile.Read(ref completed) < routineCount)
+            {
+                failures++;
+            }
+        }
+
+        Assert.True(failures == 0,
+            $"WaitAsync() returned before all routines completed in {failures}/{iterations} iterations.");
+    }
 }

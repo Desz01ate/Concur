@@ -70,9 +70,22 @@ public sealed class WaitGroup
     /// <summary>
     /// Blocks until the WaitGroup counter is zero asynchronously.
     /// </summary>
-    public Task WaitAsync()
+    public async Task WaitAsync()
     {
-        return this.tcs.Task;
+        Task task;
+
+        await this.semaphore.WaitAsync();
+
+        try
+        {
+            task = this.tcs.Task;
+        }
+        finally
+        {
+            this.semaphore.Release();
+        }
+
+        await task;
     }
 
     /// <summary>
@@ -80,6 +93,19 @@ public sealed class WaitGroup
     /// </summary>
     public void Wait()
     {
-        this.WaitAsync().GetAwaiter().GetResult();
+        Task task;
+
+        this.semaphore.Wait();
+
+        try
+        {
+            task = this.tcs.Task;
+        }
+        finally
+        {
+            this.semaphore.Release();
+        }
+
+        task.GetAwaiter().GetResult();
     }
 }
