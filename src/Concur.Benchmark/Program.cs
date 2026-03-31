@@ -87,6 +87,37 @@ public class GoBenchmark
         }
     }
 
+    [Benchmark]
+    public async Task MpmcBoundedChannel_WithWaitGroup()
+    {
+        var wg = new WaitGroup();
+        var channel = new MpmcBoundedChannel<int>(capacity: ChannelCapacity, shardCount: 4);
+
+        for (var i = 0; i < Concurrency; i++)
+        {
+            Go(wg, async ch =>
+            {
+                for (var j = 0; j < Iterations; j++)
+                {
+                    await ch.WriteAsync(1);
+                }
+            }, channel);
+        }
+
+        Go(async () =>
+        {
+            await wg.WaitAsync();
+            await channel.CompleteAsync();
+        });
+
+        var sum = await channel.SumAsync();
+
+        if (sum != ExpectedSum)
+        {
+            throw new Exception("Sum is not correct");
+        }
+    }
+
     [Benchmark(Baseline = true)]
     public async Task Channel_WithTpl()
     {
