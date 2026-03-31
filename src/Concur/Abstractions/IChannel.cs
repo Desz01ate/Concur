@@ -6,9 +6,7 @@ namespace Concur.Abstractions;
 /// to asynchronously enumerate the items in the channel via IAsyncEnumerable.
 /// </summary>
 /// <typeparam name="T">The type of data that can be written to and read from the channel.</typeparam>
-/// <typeparam name="TSelf">The concrete type that implements this interface.</typeparam>
-public interface IChannel<T, TSelf> : IAsyncEnumerable<T>
-    where TSelf : IChannel<T, TSelf>
+public interface IChannel<T> : IAsyncEnumerable<T>
 {
     /// <summary>
     /// Writes an item to the channel asynchronously.
