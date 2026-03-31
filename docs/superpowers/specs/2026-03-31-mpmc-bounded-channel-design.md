@@ -55,9 +55,10 @@ This preserves bounded memory globally and distributes contention locally.
 - `int shardCount`
 - `SemaphoreSlim availableSlots`
 - `SemaphoreSlim availableItems`
-- `int completionState` (`0 = open`, `1 = completed/faulted`)
+- `int completionState` (`open`, `completed`, `failing`, `failed`)
 - `Exception? completionException` (set only by first `FailAsync`)
-- `TaskCompletionSource completionSignal` (`RunContinuationsAsynchronously`)
+- `CancellationTokenSource completionSignal` (signals transition out of open state)
+- `TaskCompletionSource<bool> drainedSignal` (`RunContinuationsAsynchronously`, signals terminal-and-drained)
 - `long nextWriterShardProbe` (global seed; each write snapshots start shard via interlocked increment)
 - `long nextReaderShardSeed` (enumerator home-shard seed)
 
@@ -173,15 +174,17 @@ This gives locality while preventing starvation under asymmetric consumer counts
 - Subsequent calls no-op (idempotent).
 - No new writes allowed after state change.
 - Buffered items remain readable.
-- Signal `completionSignal.TrySetResult()` to wake waits that are racing semaphore wait with completion.
+- Signal `completionSignal.Cancel()` to wake waits racing semaphore waits.
+- Once terminal and drained, signal `drainedSignal.TrySetResult(true)`.
 
 ### 8.2 Fail
 
-- First caller flips `completionState`, stores `completionException`.
+- First caller transitions state `open -> failing`, stores `completionException`, then publishes `failed`.
 - Subsequent calls no-op; first exception wins.
 - Buffered items remain readable.
 - After drain, readers observe stored exception.
-- Signal `completionSignal.TrySetResult()` to wake waits that are racing semaphore wait with completion.
+- Signal `completionSignal.Cancel()` to wake waits racing semaphore waits.
+- Signal `drainedSignal` only after terminal state (`failed`) and zero pending items.
 
 ### 8.3 Drain Detection
 
@@ -197,16 +200,17 @@ Readers perform this check after failed dequeue and after wakeups.
 permit leaks when completion races semaphore waits.
 
 Required rule:
-- Do **not** implement this as raw `Task.WhenAny(semaphore.WaitAsync(), completionSignal.Task)`
+- Do **not** race `semaphore.WaitAsync()` against a separate completion task/token with raw `Task.WhenAny`
   without cleanup, because the semaphore task can complete later and consume a permit.
 
-Recommended pattern:
+Recommended pattern (implemented):
 1. Fast-check completion state.
 2. Try immediate `semaphore.Wait(0)` fast path.
 3. Await `semaphore.WaitAsync(linkedToken)` where `linkedToken` is canceled by either:
    - caller cancellation token, or
-   - `completionSignal` transition.
+   - `completionSignal` cancellation.
 4. If wake was due to completion, re-check channel state in caller loop and do not assume permit ownership.
+5. For readers after completion is observed, wait on `drainedSignal` (not a canceled completion token) to avoid hot-spin and preserve failure publication ordering.
 
 This ensures no unpaired semaphore acquisition is left behind.
 
