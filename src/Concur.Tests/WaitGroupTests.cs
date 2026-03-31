@@ -237,4 +237,79 @@ public class WaitGroupTests
         Assert.True(failures == 0,
             $"WaitAsync() returned before all routines completed in {failures}/{iterations} iterations.");
     }
+
+    [Fact]
+    public async Task Add_WithManyConcurrentDoneCalls_CountReachesZero()
+    {
+        var iterations = 500;
+
+        for (var i = 0; i < iterations; i++)
+        {
+            var wg = new WaitGroup();
+            var routineCount = 100;
+
+            for (var j = 0; j < routineCount; j++)
+            {
+                wg.Add(1);
+            }
+
+            var tasks = new Task[routineCount];
+
+            for (var j = 0; j < routineCount; j++)
+            {
+                tasks[j] = Task.Run(() =>
+                {
+                    Thread.SpinWait(10);
+                    wg.Done();
+                });
+            }
+
+            var waitTask = wg.WaitAsync();
+            var completedInTime = await Task.WhenAny(waitTask, Task.Delay(5000)) == waitTask;
+            Assert.True(completedInTime, $"WaitGroup did not complete in iteration {i}");
+
+            await Task.WhenAll(tasks);
+        }
+    }
+
+    [Fact]
+    public async Task Done_WithMoreDoneThanAdd_ThrowsInvalidOperationException()
+    {
+        var wg = new WaitGroup();
+        wg.Add(1);
+        wg.Done();
+
+        var exception = Record.Exception(() => wg.Done());
+        Assert.NotNull(exception);
+        Assert.IsType<InvalidOperationException>(exception);
+    }
+
+    [Fact]
+    public async Task WaitAsync_WithMultiplePhases_EachPhaseCompletesIndependently()
+    {
+        var wg = new WaitGroup();
+        var phases = 50;
+        var routinesPerPhase = 50;
+
+        for (var phase = 0; phase < phases; phase++)
+        {
+            var completed = 0;
+
+            for (var j = 0; j < routinesPerPhase; j++)
+            {
+                wg.Add(1);
+
+                _ = Task.Run(() =>
+                {
+                    Thread.SpinWait(10);
+                    Interlocked.Increment(ref completed);
+                    wg.Done();
+                });
+            }
+
+            await wg.WaitAsync();
+
+            Assert.Equal(routinesPerPhase, Volatile.Read(ref completed));
+        }
+    }
 }

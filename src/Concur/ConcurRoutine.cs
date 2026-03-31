@@ -51,42 +51,17 @@ public static class ConcurRoutine
     private static string GenerateRoutineId() => Guid.NewGuid().ToString("N")[..8];
 
     /// <summary>
-    /// Executes an action with concurrency limiting if specified in options.
-    /// </summary>
-    /// <param name="action">The action to execute.</param>
-    /// <param name="options">Optional configuration options including concurrency limits.</param>
-    private static async Task ExecuteWithConcurrencyLimitAsync(Func<Task> action, GoOptions? options)
-    {
-        var semaphore = options?.GetOrCreateSemaphore();
-
-        if (semaphore == null)
-        {
-            await action();
-            return;
-        }
-
-        await semaphore.WaitAsync();
-
-        try
-        {
-            await action();
-        }
-        finally
-        {
-            semaphore.Release();
-        }
-    }
-
-    /// <summary>
     /// Runs a fire-and-forget synchronous action on a background thread.
     /// </summary>
     /// <param name="action">The synchronous action to execute.</param>
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go(Action action, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -96,8 +71,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    action();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -108,9 +102,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go(Func<Task> func, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -120,8 +116,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -136,10 +151,11 @@ public static class ConcurRoutine
     public static IChannel<T, DefaultChannel<T>> Go<T>(Func<DefaultChannel<T>, Task> producer, int? capacity = null, GoOptions? options = null)
     {
         var channel = new DefaultChannel<T>(capacity);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -150,8 +166,28 @@ public static class ConcurRoutine
                     await channel.FailAsync(e);
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await producer(channel);
+                }
+                catch (Exception e)
+                {
+                    await channel.FailAsync(e);
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
 
         return channel;
     }
@@ -174,10 +210,11 @@ public static class ConcurRoutine
     public static void Go(WaitGroup wg, Action action, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -191,8 +228,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    action();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -211,10 +268,11 @@ public static class ConcurRoutine
     public static void Go(WaitGroup wg, Func<Task> func, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -228,8 +286,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func();
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     #endregion
@@ -244,9 +322,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T>(Action<T> func, T p, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -256,8 +336,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -269,9 +368,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T1, T2>(Action<T1, T2> func, T1 p1, T2 p2, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -281,8 +382,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -295,9 +415,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T1, T2, T3>(Action<T1, T2, T3> func, T1 p1, T2 p2, T3 p3, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -307,8 +429,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -322,9 +463,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T1, T2, T3, T4>(Action<T1, T2, T3, T4> func, T1 p1, T2 p2, T3 p3, T4 p4, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -334,8 +477,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -350,9 +512,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T1, T2, T3, T4, T5>(Action<T1, T2, T3, T4, T5> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -362,8 +526,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -379,9 +562,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T1, T2, T3, T4, T5, T6>(Action<T1, T2, T3, T4, T5, T6> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -391,8 +576,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -409,9 +613,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T1, T2, T3, T4, T5, T6, T7>(Action<T1, T2, T3, T4, T5, T6, T7> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -421,8 +627,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -440,9 +665,11 @@ public static class ConcurRoutine
     /// <param name="options">Optional configuration options for the Go routine.</param>
     public static void Go<T1, T2, T3, T4, T5, T6, T7, T8>(Action<T1, T2, T3, T4, T5, T6, T7, T8> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -452,8 +679,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     #endregion
@@ -469,9 +715,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T>(Func<T, Task> func, T p, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -481,8 +729,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -495,9 +762,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T1, T2>(Func<T1, T2, Task> func, T1 p1, T2 p2, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -507,8 +776,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -522,9 +810,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T1, T2, T3>(Func<T1, T2, T3, Task> func, T1 p1, T2 p2, T3 p3, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -534,8 +824,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -550,9 +859,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T1, T2, T3, T4>(Func<T1, T2, T3, T4, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -562,8 +873,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -579,9 +909,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T1, T2, T3, T4, T5>(Func<T1, T2, T3, T4, T5, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -591,8 +923,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -609,9 +960,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T1, T2, T3, T4, T5, T6>(Func<T1, T2, T3, T4, T5, T6, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -621,8 +974,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -640,9 +1012,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T1, T2, T3, T4, T5, T6, T7>(Func<T1, T2, T3, T4, T5, T6, T7, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -652,8 +1026,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -672,9 +1065,11 @@ public static class ConcurRoutine
     /// <returns>A task that represents the asynchronous operation.</returns>
     public static void Go<T1, T2, T3, T4, T5, T6, T7, T8>(Func<T1, T2, T3, T4, T5, T6, T7, T8, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, GoOptions? options = null)
     {
-        _ = Task.Run(async () =>
+        var semaphore = options?.GetOrCreateSemaphore();
+
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -684,8 +1079,27 @@ public static class ConcurRoutine
                 {
                     await HandleExceptionAsync(e, GenerateRoutineId(), options);
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     #endregion
@@ -703,10 +1117,11 @@ public static class ConcurRoutine
     public static void Go<T>(WaitGroup wg, Action<T> func, T p, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -720,8 +1135,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -736,10 +1171,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2>(WaitGroup wg, Action<T1, T2> func, T1 p1, T2 p2, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -753,8 +1189,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -770,10 +1226,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3>(WaitGroup wg, Action<T1, T2, T3> func, T1 p1, T2 p2, T3 p3, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -787,8 +1244,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -805,10 +1282,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4>(WaitGroup wg, Action<T1, T2, T3, T4> func, T1 p1, T2 p2, T3 p3, T4 p4, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -822,8 +1300,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -841,10 +1339,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5>(WaitGroup wg, Action<T1, T2, T3, T4, T5> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -858,8 +1357,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -878,10 +1397,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -895,8 +1415,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -916,10 +1456,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6, T7>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6, T7> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -933,8 +1474,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -955,10 +1516,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6, T7, T8>(WaitGroup wg, Action<T1, T2, T3, T4, T5, T6, T7, T8> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -972,8 +1534,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     #endregion
@@ -997,10 +1579,11 @@ public static class ConcurRoutine
     public static void Go<T>(WaitGroup wg, Func<T, Task> func, T p, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1014,8 +1597,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -1036,10 +1639,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2>(WaitGroup wg, Func<T1, T2, Task> func, T1 p1, T2 p2, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1053,8 +1657,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -1076,10 +1700,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3>(WaitGroup wg, Func<T1, T2, T3, Task> func, T1 p1, T2 p2, T3 p3, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1093,8 +1718,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -1117,10 +1762,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4>(WaitGroup wg, Func<T1, T2, T3, T4, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1134,8 +1780,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -1159,10 +1825,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5>(WaitGroup wg, Func<T1, T2, T3, T4, T5, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1176,8 +1843,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -1202,10 +1889,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6>(WaitGroup wg, Func<T1, T2, T3, T4, T5, T6, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1219,8 +1907,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -1246,10 +1954,11 @@ public static class ConcurRoutine
     public static void Go<T1, T2, T3, T4, T5, T6, T7>(WaitGroup wg, Func<T1, T2, T3, T4, T5, T6, T7, Task> func, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1263,8 +1972,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     /// <summary>
@@ -1302,10 +2031,11 @@ public static class ConcurRoutine
         GoOptions? options = null)
     {
         wg.Add(1);
+        var semaphore = options?.GetOrCreateSemaphore();
 
-        _ = Task.Run(async () =>
+        if (semaphore is null)
         {
-            await ExecuteWithConcurrencyLimitAsync(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -1319,8 +2049,28 @@ public static class ConcurRoutine
                 {
                     wg.Done();
                 }
-            }, options);
-        });
+            });
+        }
+        else
+        {
+            _ = Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await func(p1, p2, p3, p4, p5, p6, p7, p8);
+                }
+                catch (Exception e)
+                {
+                    await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                }
+                finally
+                {
+                    wg.Done();
+                    semaphore.Release();
+                }
+            });
+        }
     }
 
     #endregion
