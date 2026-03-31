@@ -1,7 +1,7 @@
 # MPMC Bounded Channel Design (Concur)
 
 Date: 2026-03-31
-Status: Draft approved in chat, written for implementation planning
+Status: Revised after review
 
 ## 1. Goal
 
@@ -16,13 +16,16 @@ This design is intentionally MPMC-first and does not inherit the MPSC stripe sem
 ## 2. Public Surface
 
 Introduce:
-- `Concur.Implementations.MpmcBoundedChannel<T> : IChannel<T>`
+- `public sealed class MpmcBoundedChannel<T> : IChannel<T>` in `Concur.Implementations`
 
 Maintain existing `IChannel<T>` behavioral contract:
 - `WriteAsync` blocks asynchronously when bounded capacity is full,
 - `CompleteAsync` stops future writes and allows draining buffered items,
 - `FailAsync(ex)` stops future writes, drains buffered items, then propagates `ex`,
 - async enumeration supports concurrent competing consumers.
+
+`ConcurRoutine.Go<T>()` requires no API changes. Users opt into MPMC by passing
+`channelFactory: () => new MpmcBoundedChannel<T>(...)`.
 
 ## 3. High-Level Architecture
 
@@ -31,7 +34,7 @@ Use **sharded bounded lock-free rings** with global permits:
 - Channel owns `N` independent shards (`N` configurable, default based on CPU count).
 - Each shard is a bounded lock-free MPMC ring (Vyukov-style sequence slots).
 - Global backpressure and wake signaling use semaphores:
-  - `availableSlots` initialized to global capacity,
+  - `availableSlots` initialized to the **requested logical capacity**,
   - `availableItems` initialized to 0.
 
 Data flow:
@@ -54,14 +57,17 @@ This preserves bounded memory globally and distributes contention locally.
 - `SemaphoreSlim availableItems`
 - `int completionState` (`0 = open`, `1 = completed/faulted`)
 - `Exception? completionException` (set only by first `FailAsync`)
-- `int blockedReaders` / `int blockedWriters` (waiter counts for close/fail wakeups)
-- Optional diagnostic counters (`pendingItems`, contention stats)
+- `TaskCompletionSource completionSignal` (`RunContinuationsAsynchronously`)
+- `long nextWriterShardProbe` (global probe seed)
+- `long nextReaderShardSeed` (enumerator home-shard seed)
+- Optional diagnostics only (not correctness): contention counters, steal counters
 
 ### 4.2 Shard Structure
 
 Each shard holds:
 - `Slot[] slots` (fixed capacity, power-of-two)
 - `int mask` (`capacity - 1`)
+- `int capacity`
 - `long enqueuePos`
 - `long dequeuePos`
 
@@ -74,28 +80,68 @@ Sequence protocol (Vyukov):
 - Occupied slot expected sequence at dequeue: `pos + 1`
 - After dequeue, set sequence to `pos + capacity` (slot becomes free for future cycle)
 
-## 5. Producer Path (`WriteAsync`)
+### 4.3 Capacity Math (Explicit)
+
+Inputs:
+- `requestedCapacity` (constructor argument, must be > 0)
+- `shardCount` (must be > 0)
+
+Formula:
+1. `basePerShard = ceil(requestedCapacity / shardCount)`
+2. `perShardCapacity = NextPowerOfTwo(max(2, basePerShard))`
+3. `physicalCapacity = shardCount * perShardCapacity`
+4. `availableSlots` initial count = `requestedCapacity` (logical bound)
+
+Example: `requestedCapacity=100`, `shardCount=8`:
+- `basePerShard=13`
+- `perShardCapacity=16`
+- `physicalCapacity=128`
+- logical write limit remains 100 via `availableSlots`
+
+So memory is provisioned to physical capacity, but externally visible bounded behavior is logical capacity.
+
+## 5. .NET Memory Ordering Requirements (ARM64-safe)
+
+The ring protocol must use explicit .NET synchronization primitives, not architecture assumptions.
+
+Required primitives:
+- `Interlocked.CompareExchange(ref enqueuePos, ...)` and `Interlocked.CompareExchange(ref dequeuePos, ...)` for position claims.
+- `Volatile.Read(ref slot.sequence)` for sequence checks.
+- `Volatile.Write(ref slot.sequence, newSeq)` for publish/free transitions.
+- Plain write to `slot.item` occurs before publish `Volatile.Write`.
+- Plain read of `slot.item` occurs after successful claim and before free `Volatile.Write`.
+
+Rule of thumb for implementation:
+- Producer: write payload, then release-publish sequence with `Volatile.Write`.
+- Consumer: observe sequence with acquire `Volatile.Read`, then read payload.
+
+This is mandatory for correctness on x64 and ARM64.
+
+## 6. Producer Path (`WriteAsync`)
 
 1. Fast-path closed check; if closed throw `InvalidOperationException`.
 2. Acquire one slot permit with bounded spin-then-async wait:
    - short `SpinWait` budget for microbursts,
-   - fallback to `availableSlots.WaitAsync(token)`.
+   - fallback to `WaitForSlotOrCompletionAsync(token)` which races slot wait with completion signal.
 3. Re-check closed state after wake.
-4. Attempt enqueue:
-   - Choose initial shard via thread-local probe.
-   - Try local enqueue; if contention/temporarily full, probe other shards with rotating start.
-   - Use CAS on shard `enqueuePos` to claim position.
-5. On success:
-   - publish item using slot sequence release-store,
+4. Attempt enqueue into shards:
+   - Choose initial shard from thread-local probe seeded by `nextWriterShardProbe`.
+   - Probe all shards (rotating order) with lock-free enqueue attempts.
+5. If all shard attempts fail after full probe pass (transient contention case):
+   - do bounded spin/yield retry loops while permit is held,
+   - after retry budget exhausted, `await Task.Yield()` and retry probe.
+   - **Never return the slot permit during open state**; permit implies eventual enqueue progress.
+6. On success:
+   - publish item using `Volatile.Write` on slot sequence,
    - release one `availableItems` permit.
-6. If closed race is detected before publish, return slot permit and throw.
+7. If closed race is detected before publish, return slot permit and throw.
 
 No global lock on the hot path.
 
-## 6. Consumer Path (`MoveNextAsync`)
+## 7. Consumer Path (`MoveNextAsync`)
 
 1. Try fast dequeue without waiting:
-   - home-shard first (consumer-local affinity),
+   - home-shard first,
    - then steal pass over other shards.
 2. If successful:
    - set `Current`,
@@ -103,31 +149,41 @@ No global lock on the hot path.
    - return `true`.
 3. If unsuccessful:
    - if closed and drained: return `false` or throw stored failure,
-   - else spin briefly, then wait on `availableItems.WaitAsync(token)`.
+   - else spin briefly, then wait on `WaitForItemOrCompletionAsync(token)`.
 4. After wake, retry dequeue loop.
 5. On cancellation: return `false` (align existing channel enumerator behavior).
 
 Consumers are competing: each item observed exactly once globally.
 
-## 7. Completion and Failure Semantics
+### 7.1 Consumer Home-Shard Strategy
 
-### 7.1 Complete
+- Each enumerator gets a stable home shard at construction:
+  - `homeShard = (int)(Interlocked.Increment(ref nextReaderShardSeed) % shardCount)`
+- On each dequeue attempt:
+  - try `homeShard` first,
+  - then probe remaining shards with rotating start offset.
 
-- First caller flips `completionState` via interlocked exchange.
+This gives locality while preventing starvation under asymmetric consumer counts.
+
+## 8. Completion and Failure Semantics
+
+### 8.1 Complete
+
+- First caller flips `completionState` via `Interlocked.Exchange`.
 - Subsequent calls no-op (idempotent).
 - No new writes allowed after state change.
 - Buffered items remain readable.
-- Wake blocked readers/writers so they can observe closure.
+- Signal `completionSignal.TrySetResult()` to wake waits that are racing semaphore wait with completion.
 
-### 7.2 Fail
+### 8.2 Fail
 
 - First caller flips `completionState`, stores `completionException`.
 - Subsequent calls no-op; first exception wins.
 - Buffered items remain readable.
 - After drain, readers observe stored exception.
-- Wake blocked readers/writers.
+- Signal `completionSignal.TrySetResult()` to wake waits that are racing semaphore wait with completion.
 
-### 7.3 Drain Detection
+### 8.3 Drain Detection
 
 Treat channel as drained when:
 - completion is set, and
@@ -135,25 +191,26 @@ Treat channel as drained when:
 
 Readers perform this check after failed dequeue and after wakeups.
 
-## 8. Tail-Latency Optimizations
+## 9. Tail-Latency Optimizations
 
 - Bounded spin-before-block for both read/write paths.
-- Shard affinity for consumers to improve cache locality.
+- Stable consumer home-shard affinity for cache locality.
 - Stealing with rotating/randomized probe start to reduce herd effects.
 - Keep critical sections lock-free; no global mutex in hot paths.
 - Keep per-operation allocation at zero on happy path.
 
-## 9. Correctness Invariants
+## 10. Correctness Invariants
 
 1. **No duplication**: each successful dequeue corresponds to exactly one successful enqueue.
 2. **No loss**: every published item becomes available to exactly one consumer unless process aborts externally.
-3. **Bounded capacity**: cannot exceed configured global capacity due to `availableSlots` permits.
+3. **Bounded logical capacity**: in-flight item count cannot exceed `requestedCapacity` due to `availableSlots` permits.
 4. **Permit symmetry**:
    - enqueue success -> +1 item permit,
    - dequeue success -> +1 slot permit.
 5. **Close/fail safety**: post-close writes are rejected; pre-close buffered items still drain.
+6. **Physical capacity safety**: shard enqueue only occurs when a free ring slot exists by sequence protocol.
 
-## 10. Implementation Plan Inputs
+## 11. Implementation Plan Inputs
 
 Expected files:
 - `src/Concur/Implementations/MpmcBoundedChannel.cs` (new)
@@ -161,35 +218,46 @@ Expected files:
 - `src/Concur.Benchmark/Program.cs` (optional benchmark case addition)
 
 Potential constructor shape:
-- `MpmcBoundedChannel(int capacity, int? shardCount = null, int? shardCapacity = null)`
+- `MpmcBoundedChannel(int capacity, int? shardCount = null)`
 
 Sizing defaults:
 - `shardCount = min(Environment.ProcessorCount, 8 or 16)`
-- per-shard capacity chosen to cover global capacity with minimal slack; enforce powers of two.
+- per-shard capacity computed using Section 4.3 formula.
 
-## 11. Test Matrix
+## 12. Test Matrix
 
 Reuse `BoundedChannelBehaviorTests` by deriving `MpmcBoundedChannelTests` and add MPMC-specific tests:
 
-1. Multiple consumers + multiple producers consume all items exactly once.
-2. High-contention soak with counts/sum validation.
-3. Blocked writers are released on `CompleteAsync`/`FailAsync` and fail appropriately.
-4. Blocked readers are released on `CompleteAsync`/`FailAsync` and terminate appropriately.
-5. Cancellation for blocked write/read behaves as expected.
-6. Idempotency of complete/fail and first-failure-wins semantics.
+1. Constructor validation:
+   - zero/negative capacity throws,
+   - zero/negative shardCount throws.
+2. Single-shard FIFO:
+   - with `shardCount=1`, insertion order is preserved.
+3. Competing-consumer correctness:
+   - multiple producers + multiple consumers consume all items exactly once.
+4. High-contention soak:
+   - producers >> shards and consumers >> shards to stress steal paths.
+5. Global capacity bound:
+   - concurrent writes block at logical bound and resume after reads.
+6. Write cancellation when full:
+   - blocked `WriteAsync` with canceled token throws `OperationCanceledException`.
+7. Reader cancellation:
+   - canceled enumeration exits without exception.
+8. Completion/failure wakeups:
+   - blocked readers/writers are released on complete/fail and observe correct terminal behavior.
+9. Idempotency and first-failure-wins semantics.
 
-## 12. Risks and Mitigations
+## 13. Risks and Mitigations
 
-- Risk: semaphore over/under-release in close races.
-  - Mitigation: strict state transitions and symmetry assertions in tests.
-- Risk: shard imbalance under unlucky hashing.
-  - Mitigation: probe fallback + rotating starts + benchmark-driven tuning.
-- Risk: subtle memory ordering bugs in slot sequence protocol.
-  - Mitigation: rely on interlocked/volatile APIs consistently and include stress tests.
+- Risk: permit/accounting drift in close races.
+  - Mitigation: completion-signal race waits + permit symmetry assertions in tests.
+- Risk: shard imbalance under unlucky probing.
+  - Mitigation: rotating starts + thread-local seeds + benchmark tuning.
+- Risk: memory ordering bugs in slot sequence protocol.
+  - Mitigation: strict primitive usage from Section 5 and stress tests on ARM64/x64 CI.
 
-## 13. Non-Goals
+## 14. Non-Goals
 
 - Strict global FIFO ordering across producers.
 - Broadcast semantics (same item to all consumers).
 - Unbounded channel mode in this implementation.
-
