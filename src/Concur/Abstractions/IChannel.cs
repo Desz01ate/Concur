@@ -35,14 +35,4 @@ public interface IChannel<T, TSelf> : IAsyncEnumerable<T>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous fault operation.</returns>
     ValueTask FailAsync(Exception ex, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Defines a contract for a write operator.
-    /// </summary>
-    static abstract TSelf operator <<(TSelf channel, T item);
-
-    /// <summary>
-    /// Defines a contract for a read-and-return operator.
-    /// </summary>
-    static abstract T operator -(TSelf channel);
 }
