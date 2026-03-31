@@ -1,5 +1,6 @@
 namespace Concur.Tests;
 
+using System.Collections.Concurrent;
 using Abstractions;
 using Implementations;
 
@@ -59,5 +60,39 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => channel.WriteAsync(2, cts.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task WriteRead_WithMultipleProducersAndConsumers_ConsumesAllItemsExactlyOnce()
+    {
+        const int producers = 8;
+        const int consumers = 8;
+        const int perProducer = 500;
+
+        var channel = new MpmcBoundedChannel<int>(capacity: 256, shardCount: 4);
+        var bag = new ConcurrentBag<int>();
+
+        var consumerTasks = Enumerable.Range(0, consumers).Select(async _ =>
+        {
+            await foreach (var item in channel)
+            {
+                bag.Add(item);
+            }
+        }).ToArray();
+
+        var producerTasks = Enumerable.Range(0, producers).Select(async p =>
+        {
+            for (var i = 0; i < perProducer; i++)
+            {
+                await channel.WriteAsync((p * perProducer) + i);
+            }
+        }).ToArray();
+
+        await Task.WhenAll(producerTasks);
+        await channel.CompleteAsync();
+        await Task.WhenAll(consumerTasks);
+
+        Assert.Equal(producers * perProducer, bag.Count);
+        Assert.Equal(producers * perProducer, bag.Distinct().Count());
     }
 }
