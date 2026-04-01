@@ -16,8 +16,8 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     private const int ReadSpinCount = 64;
 
     private readonly Shard[] shards;
-    private readonly SemaphoreSlim availableSlots;
-    private readonly SemaphoreSlim availableItems;
+    private readonly AsyncCounterGate availableSlots;
+    private readonly AsyncCounterGate availableItems;
     private readonly CancellationTokenSource completionSignal;
     private readonly TaskCompletionSource<bool> drainedSignal;
 
@@ -50,8 +50,8 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
         this.shardCount = Math.Min(requestedShardCount, capacity);
         this.shards = CreateShards(capacity, this.shardCount);
-        this.availableSlots = new SemaphoreSlim(capacity, capacity);
-        this.availableItems = new SemaphoreSlim(0, capacity);
+        this.availableSlots = new AsyncCounterGate(capacity, capacity);
+        this.availableItems = new AsyncCounterGate(0, capacity);
         this.completionSignal = new CancellationTokenSource();
         this.drainedSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
     }
@@ -263,7 +263,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         {
             this.ThrowIfCompleted();
 
-            if (this.availableSlots.Wait(0))
+            if (this.availableSlots.TryAcquire())
             {
                 return;
             }
@@ -276,7 +276,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         {
             try
             {
-                await this.availableSlots.WaitAsync(this.completionSignal.Token).ConfigureAwait(false);
+                await this.availableSlots.AcquireAsync(this.completionSignal.Token).ConfigureAwait(false);
                 return;
             }
             catch (OperationCanceledException)
@@ -292,7 +292,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
         try
         {
-            await this.availableSlots.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+            await this.availableSlots.AcquireAsync(linkedCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -310,7 +310,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         var spin = new SpinWait();
         for (var i = 0; i < ReadSpinCount; i++)
         {
-            if (this.availableItems.Wait(0))
+            if (this.availableItems.TryAcquire())
             {
                 return ConsumerWaitResult.ItemPermitAcquired;
             }
@@ -354,7 +354,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         {
             try
             {
-                await this.availableItems.WaitAsync(this.completionSignal.Token).ConfigureAwait(false);
+                await this.availableItems.AcquireAsync(this.completionSignal.Token).ConfigureAwait(false);
                 return ConsumerWaitResult.ItemPermitAcquired;
             }
             catch (OperationCanceledException)
@@ -370,7 +370,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
         try
         {
-            await this.availableItems.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+            await this.availableItems.AcquireAsync(linkedCts.Token).ConfigureAwait(false);
             return ConsumerWaitResult.ItemPermitAcquired;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -554,6 +554,166 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
                 }
 
                 spin.SpinOnce();
+            }
+        }
+    }
+
+    private sealed class AsyncCounterGate
+    {
+        private readonly object sync = new();
+        private readonly Queue<Waiter> waiters = new();
+        private readonly int maxCount;
+        private int count;
+
+        public AsyncCounterGate(int initialCount, int maxCount)
+        {
+            if (maxCount <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxCount), "Max count must be greater than zero.");
+            }
+
+            if (initialCount < 0 || initialCount > maxCount)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(initialCount),
+                    "Initial count must be in the inclusive range [0, maxCount].");
+            }
+
+            this.count = initialCount;
+            this.maxCount = maxCount;
+        }
+
+        public int CurrentCount => Volatile.Read(ref this.count);
+
+        public bool TryAcquire()
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref this.count);
+                if (current <= 0)
+                {
+                    return false;
+                }
+
+                if (Interlocked.CompareExchange(ref this.count, current - 1, current) == current)
+                {
+                    return true;
+                }
+            }
+        }
+
+        public ValueTask AcquireAsync(CancellationToken cancellationToken = default)
+        {
+            if (this.TryAcquire())
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            return this.AcquireSlowAsync(cancellationToken);
+        }
+
+        public void Release()
+        {
+            this.Release(1);
+        }
+
+        public void Release(int releaseCount)
+        {
+            if (releaseCount <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(releaseCount), "Release count must be greater than zero.");
+            }
+
+            for (var i = 0; i < releaseCount; i++)
+            {
+                lock (this.sync)
+                {
+                    while (this.waiters.Count > 0)
+                    {
+                        if (this.waiters.Dequeue().TrySignal())
+                        {
+                            goto ReleaseCompleted;
+                        }
+                    }
+
+                    if (!this.TryIncrementCount())
+                    {
+                        throw new SemaphoreFullException();
+                    }
+                }
+
+            ReleaseCompleted:
+                continue;
+            }
+        }
+
+        private async ValueTask AcquireSlowAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Waiter waiter;
+            lock (this.sync)
+            {
+                if (this.TryAcquire())
+                {
+                    return;
+                }
+
+                waiter = new Waiter();
+                this.waiters.Enqueue(waiter);
+            }
+
+            await waiter.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private bool TryIncrementCount()
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref this.count);
+                if (current >= this.maxCount)
+                {
+                    return false;
+                }
+
+                if (Interlocked.CompareExchange(ref this.count, current + 1, current) == current)
+                {
+                    return true;
+                }
+            }
+        }
+
+        private sealed class Waiter
+        {
+            private readonly TaskCompletionSource<bool> completionSource =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public bool TrySignal()
+            {
+                return this.completionSource.TrySetResult(true);
+            }
+
+            public ValueTask WaitAsync(CancellationToken cancellationToken)
+            {
+                if (!cancellationToken.CanBeCanceled)
+                {
+                    return new ValueTask(this.completionSource.Task);
+                }
+
+                return this.WaitWithCancellationAsync(cancellationToken);
+            }
+
+            private async ValueTask WaitWithCancellationAsync(CancellationToken cancellationToken)
+            {
+                using var registration = cancellationToken.Register(
+                    static state =>
+                    {
+                        var tcs = (TaskCompletionSource<bool>)state!;
+                        tcs.TrySetCanceled();
+                    },
+                    this.completionSource);
+
+                await this.completionSource.Task.ConfigureAwait(false);
             }
         }
     }
