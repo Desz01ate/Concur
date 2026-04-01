@@ -315,6 +315,112 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
         Assert.False(await enumerator.MoveNextAsync());
     }
 
+    [Fact]
+    public async Task DisposeEnumerator_WithBufferedPermits_DoesNotLeakItemPermits()
+    {
+        const int iterations = 32;
+
+        var channel = new MpmcBoundedChannel<int>(capacity: 64, shardCount: 4);
+
+        for (var i = 0; i < iterations; i++)
+        {
+            await channel.WriteAsync(i);
+        }
+
+        await using (var enumerator = channel.GetAsyncEnumerator())
+        {
+            Assert.True(await enumerator.MoveNextAsync());
+        }
+
+        await channel.CompleteAsync();
+
+        var remaining = new List<int>();
+        var drainTask = Task.Run(async () =>
+        {
+            await foreach (var item in channel)
+            {
+                remaining.Add(item);
+            }
+        });
+
+        var completed = await Task.WhenAny(drainTask, Task.Delay(TimeSpan.FromSeconds(3)));
+        Assert.Same(drainTask, completed);
+        await drainTask;
+
+        Assert.Equal(iterations - 1, remaining.Count);
+        Assert.Equal(0, GetAvailableItemPermitCount(channel));
+    }
+
+    [Fact]
+    public async Task MultiConsumer_WithGoAndWaitGroups_DoesNotDeadlockOnCompletion()
+    {
+        const int rounds = 50;
+        const int producers = 8;
+        const int consumers = 8;
+        const int perProducer = 50_000;
+        const int expectedSum = producers * perProducer;
+
+        for (var round = 0; round < rounds; round++)
+        {
+            var producerWg = new WaitGroup();
+            var consumerWg = new WaitGroup();
+            var channel = new MpmcBoundedChannel<int>(capacity: 1024, shardCount: 4);
+            long totalSum = 0;
+
+            for (var i = 0; i < producers; i++)
+            {
+                ConcurRoutine.Go(
+                    producerWg,
+                    async ch =>
+                    {
+                        for (var j = 0; j < perProducer; j++)
+                        {
+                            await ch.WriteAsync(1);
+                        }
+                    },
+                    channel);
+            }
+
+            ConcurRoutine.Go(async () =>
+            {
+                await producerWg.WaitAsync();
+                await channel.CompleteAsync();
+            });
+
+            for (var i = 0; i < consumers; i++)
+            {
+                ConcurRoutine.Go(
+                    consumerWg,
+                    async ch =>
+                    {
+                        long local = 0;
+                        await foreach (var item in ch)
+                        {
+                            local += item;
+                        }
+
+                        Interlocked.Add(ref totalSum, local);
+                    },
+                    channel);
+            }
+
+            var consumerWait = consumerWg.WaitAsync();
+            var completed = await Task.WhenAny(consumerWait, Task.Delay(TimeSpan.FromSeconds(10)));
+            if (completed != consumerWait)
+            {
+                var pendingItems = GetPrivateField<long>(channel, "pendingItems");
+                var availableItems = GetAvailableItemPermitCount(channel);
+                var completionState = GetPrivateField<int>(channel, "completionState");
+
+                Assert.Fail(
+                    $"Potential deadlock in round {round}: pendingItems={pendingItems}, availableItems={availableItems}, completionState={completionState}.");
+            }
+
+            await consumerWait;
+            Assert.Equal(expectedSum, totalSum);
+        }
+    }
+
     private static int GetAvailableItemPermitCount(MpmcBoundedChannel<int> channel)
     {
         var field = typeof(MpmcBoundedChannel<int>).GetField(
@@ -325,6 +431,18 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
 
         var semaphore = Assert.IsType<SemaphoreSlim>(field.GetValue(channel));
         return semaphore.CurrentCount;
+    }
+
+    private static TField GetPrivateField<TField>(MpmcBoundedChannel<int> channel, string fieldName)
+    {
+        var field = typeof(MpmcBoundedChannel<int>).GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+        var value = field.GetValue(channel);
+        Assert.NotNull(value);
+        return Assert.IsType<TField>(value);
     }
 
     private static void SetPrivateField<TValue>(MpmcBoundedChannel<int> channel, string fieldName, TValue value)
