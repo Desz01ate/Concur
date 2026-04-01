@@ -365,12 +365,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
                 switch (waitResult)
                 {
                     case ConsumerWaitResult.ItemPermitAcquired:
-                        if (!this.owner.TryDequeueReserved(this.homeShard, out var item))
-                        {
-                            throw new InvalidOperationException("Item permit acquired without a readable item.");
-                        }
-
-                        this.current = item;
+                        this.current = await this.WaitForReservedItemAsync().ConfigureAwait(false);
                         return true;
 
                     case ConsumerWaitResult.ChannelCompleted:
@@ -395,6 +390,31 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        private async ValueTask<T> WaitForReservedItemAsync()
+        {
+            var spin = new SpinWait();
+            var spinsSinceYield = 0;
+
+            while (true)
+            {
+                if (this.owner.TryDequeueReserved(this.homeShard, out var item))
+                {
+                    return item;
+                }
+
+                spin.SpinOnce();
+                spinsSinceYield++;
+
+                if (spinsSinceYield < ReadSpinCount)
+                {
+                    continue;
+                }
+
+                spinsSinceYield = 0;
+                await Task.Yield();
+            }
+        }
     }
 
     private sealed class Shard
