@@ -312,4 +312,40 @@ public class WaitGroupTests
             Assert.Equal(routinesPerPhase, Volatile.Read(ref completed));
         }
     }
+
+
+    [Fact]
+    public async Task WaitAsync_WithCancellationToken_ThrowsOperationCanceledException()
+    {
+        var wg = new WaitGroup();
+        wg.Add(1);
+
+        using var cts = new CancellationTokenSource();
+        var waitTask = wg.WaitAsync(cts.Token);
+
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await waitTask);
+    }
+
+    [Fact]
+    public async Task WaitAsync_WithCancellationToken_DoesNotCorruptReuse()
+    {
+        var wg = new WaitGroup();
+        wg.Add(1);
+
+        using var cts = new CancellationTokenSource();
+        var canceledWait = wg.WaitAsync(cts.Token);
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await canceledWait);
+
+        wg.Done();
+        await wg.WaitAsync();
+
+        wg.Add(1);
+        wg.Done();
+        await wg.WaitAsync();
+    }
+
 }
