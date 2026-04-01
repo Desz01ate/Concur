@@ -267,6 +267,20 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
             spin.SpinOnce();
         }
 
+        if (!cancellationToken.CanBeCanceled)
+        {
+            try
+            {
+                await this.availableSlots.WaitAsync(this.completionSignal.Token).ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                this.ThrowIfCompleted();
+                throw;
+            }
+        }
+
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             this.completionSignal.Token);
@@ -314,12 +328,34 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         {
             try
             {
-                await this.drainedSignal.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (cancellationToken.CanBeCanceled)
+                {
+                    await this.drainedSignal.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await this.drainedSignal.Task.ConfigureAwait(false);
+                }
+
                 return ConsumerWaitResult.ChannelCompleted;
             }
             catch (OperationCanceledException)
             {
                 return ConsumerWaitResult.ConsumerCanceled;
+            }
+        }
+
+        if (!cancellationToken.CanBeCanceled)
+        {
+            try
+            {
+                await this.availableItems.WaitAsync(this.completionSignal.Token).ConfigureAwait(false);
+                return ConsumerWaitResult.ItemPermitAcquired;
+            }
+            catch (OperationCanceledException)
+            {
+                await this.drainedSignal.Task.ConfigureAwait(false);
+                return ConsumerWaitResult.ChannelCompleted;
             }
         }
 
@@ -338,7 +374,15 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         }
         catch (OperationCanceledException)
         {
-            return ConsumerWaitResult.Retry;
+            try
+            {
+                await this.drainedSignal.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return ConsumerWaitResult.ChannelCompleted;
+            }
+            catch (OperationCanceledException)
+            {
+                return ConsumerWaitResult.ConsumerCanceled;
+            }
         }
     }
 
