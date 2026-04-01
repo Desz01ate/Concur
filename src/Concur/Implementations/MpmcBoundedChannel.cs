@@ -12,8 +12,8 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     private const int CompletionStateCompleted = 1;
     private const int CompletionStateFailing = 2;
     private const int CompletionStateFailed = 3;
-    private const int WriteSpinCount = 32;
-    private const int ReadSpinCount = 16;
+    private const int WriteSpinCount = 64;
+    private const int ReadSpinCount = 64;
 
     private readonly Shard[] shards;
     private readonly SemaphoreSlim availableSlots;
@@ -74,7 +74,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
             this.ThrowIfCompleted();
 
             var spin = new SpinWait();
-            var spinsSinceYield = 0;
+            var spinsSinceThreadYield = 0;
             while (true)
             {
                 if (this.TryEnqueue(item))
@@ -86,15 +86,18 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
                 this.ThrowIfCompleted();
                 spin.SpinOnce();
-                spinsSinceYield++;
+                spinsSinceThreadYield++;
 
-                if (spinsSinceYield < WriteSpinCount)
+                if (spinsSinceThreadYield < WriteSpinCount)
                 {
                     continue;
                 }
 
-                spinsSinceYield = 0;
-                await Task.Yield();
+                spinsSinceThreadYield = 0;
+                if (!Thread.Yield())
+                {
+                    Thread.Sleep(0);
+                }
             }
         }
         catch
@@ -191,7 +194,7 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         return false;
     }
 
-    private bool TryDequeueReserved(int startShard, out T item)
+    private bool TryDequeueReserved(ref int startShard, out T item)
     {
         for (var i = 0; i < this.shardCount; i++)
         {
@@ -209,9 +212,11 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
                 this.SignalDrainedIfCompleted();
             }
 
+            startShard = (idx + 1) % this.shardCount;
             return true;
         }
 
+        startShard = (startShard + 1) % this.shardCount;
         item = default!;
         return false;
     }
@@ -390,13 +395,13 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
     {
         private readonly MpmcBoundedChannel<T> owner;
         private readonly CancellationToken cancellationToken;
-        private readonly int homeShard;
+        private int nextShard;
         private T current = default!;
         public Enumerator(MpmcBoundedChannel<T> owner, CancellationToken cancellationToken)
         {
             this.owner = owner;
             this.cancellationToken = cancellationToken;
-            this.homeShard = (int)(Interlocked.Increment(ref owner.nextReaderShardSeed) % owner.shardCount);
+            this.nextShard = (int)(Interlocked.Increment(ref owner.nextReaderShardSeed) % owner.shardCount);
         }
 
         public T Current => this.current;
@@ -406,10 +411,11 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
             while (true)
             {
                 var waitResult = await this.owner.WaitForItemPermitAsync(this.cancellationToken).ConfigureAwait(false);
+
                 switch (waitResult)
                 {
                     case ConsumerWaitResult.ItemPermitAcquired:
-                        this.current = await this.WaitForReservedItemAsync().ConfigureAwait(false);
+                        this.current = this.WaitForReservedItem();
                         return true;
 
                     case ConsumerWaitResult.ChannelCompleted:
@@ -435,28 +441,31 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-        private async ValueTask<T> WaitForReservedItemAsync()
+        private T WaitForReservedItem()
         {
             var spin = new SpinWait();
-            var spinsSinceYield = 0;
+            var spinsSinceThreadYield = 0;
 
             while (true)
             {
-                if (this.owner.TryDequeueReserved(this.homeShard, out var item))
+                if (this.owner.TryDequeueReserved(ref this.nextShard, out var item))
                 {
                     return item;
                 }
 
                 spin.SpinOnce();
-                spinsSinceYield++;
+                spinsSinceThreadYield++;
 
-                if (spinsSinceYield < ReadSpinCount)
+                if (spinsSinceThreadYield < ReadSpinCount)
                 {
                     continue;
                 }
 
-                spinsSinceYield = 0;
-                await Task.Yield();
+                spinsSinceThreadYield = 0;
+                if (!Thread.Yield())
+                {
+                    Thread.Sleep(0);
+                }
             }
         }
     }
