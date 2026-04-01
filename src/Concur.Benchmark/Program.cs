@@ -8,11 +8,15 @@ using static Concur.ConcurRoutine;
 
 internal static class BenchmarkConfig
 {
-    public const int Iterations = 1_000_000;
-    public const int Concurrency = 16;
-    public const int ConsumerCount = 16;
-    public const int ExpectedSum = Iterations * Concurrency;
-    public const int ChannelCapacity = 1024;
+    public static readonly int Iterations =
+        GetPositiveIntFromEnvironment("CONCUR_BENCH_ITERATIONS", 200_000);
+    public static readonly int Concurrency =
+        GetPositiveIntFromEnvironment("CONCUR_BENCH_CONCURRENCY", Environment.ProcessorCount);
+    public static readonly int ConsumerCount =
+        GetPositiveIntFromEnvironment("CONCUR_BENCH_CONSUMER_COUNT", Concurrency);
+    public static readonly int ChannelCapacity =
+        GetPositiveIntFromEnvironment("CONCUR_BENCH_CHANNEL_CAPACITY", 16_384);
+    public static readonly long ExpectedSum = (long)Iterations * Concurrency;
 
     public readonly static BoundedChannelOptions SingleConsumerChannelOptions = new(ChannelCapacity)
     {
@@ -32,6 +36,17 @@ internal static class BenchmarkConfig
         {
             throw new Exception("Sum is not correct");
         }
+    }
+
+    private static int GetPositiveIntFromEnvironment(string variableName, int defaultValue)
+    {
+        var value = Environment.GetEnvironmentVariable(variableName);
+        if (!string.IsNullOrWhiteSpace(value) && int.TryParse(value, out var parsedValue) && parsedValue > 0)
+        {
+            return parsedValue;
+        }
+
+        return defaultValue;
     }
 }
 

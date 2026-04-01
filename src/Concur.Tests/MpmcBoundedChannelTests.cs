@@ -428,9 +428,17 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         Assert.NotNull(field);
+        var gate = field.GetValue(channel);
+        Assert.NotNull(gate);
 
-        var semaphore = Assert.IsType<SemaphoreSlim>(field.GetValue(channel));
-        return semaphore.CurrentCount;
+        var currentCountProperty = gate.GetType().GetProperty(
+            "CurrentCount",
+            BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(currentCountProperty);
+
+        var currentCount = currentCountProperty.GetValue(gate);
+        Assert.NotNull(currentCount);
+        return Assert.IsType<int>(currentCount);
     }
 
     private static TField GetPrivateField<TField>(MpmcBoundedChannel<int> channel, string fieldName)
