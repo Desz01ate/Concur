@@ -231,4 +231,28 @@ public class ExceptionHandlingTests
             Assert.Contains(ex, aggregateException.InnerExceptions);
         }
     }
+
+
+    [Fact]
+    public async Task Go_WithMatchingOperationCanceledException_DoesNotCallExceptionHandler()
+    {
+        using var context = Context.Background.CreateChild("handler-suppression");
+        var handler = new TestExceptionHandler();
+        var wg = new WaitGroup();
+
+        Go(wg, async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), context.CancellationToken);
+        }, new GoOptions
+        {
+            Context = context,
+            ExceptionHandler = handler,
+        });
+
+        context.TryCancel();
+        await wg.WaitAsync();
+
+        Assert.Empty(handler.GetCapturedExceptions());
+    }
+
 }
