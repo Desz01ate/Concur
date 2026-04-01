@@ -4,24 +4,18 @@
     <TargetFramework>$(FrameworkVersion)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <Description>A lightweight C# library providing Go-inspired concurrency patterns for .NET applications.</Description>
     <PackageProjectUrl>https://github.com/Desz01ate/Concur</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Desz01ate/Concur</RepositoryUrl>
-    <PackageReleaseNotes>
-## What's New in 1.4.0
+    <PackageReleaseNotes><![CDATA[
+## What's New in 1.5.0
 
 ### Features
-- Added degree of parallelism support via `GoOptions`
-- Added extra constructors for `WaitGroup`
-
-### Performance
-- Replaced `WaitGroup` locking with lock-free CAS for reduced contention
-- Inlined `Go()` fast/slow paths, removing `ExecuteWithConcurrencyLimitAsync`
-
-### Bug Fixes
-- Fixed race condition in `WaitGroup` around `TaskCompletionSource` access
-    </PackageReleaseNotes>
+- Added `Go<T>` channel factory support so callers can choose the concrete `IChannel<T>` implementation
+- Added `MpscBoundedChannel<T>` for bounded multi-producer, single-consumer workloads
+- Added `MpmcBoundedChannel<T>` for bounded multi-producer, multi-consumer workloads
+    ]]></PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>

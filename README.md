@@ -96,6 +96,7 @@ Console.WriteLine("Channel consumed. Program finished.");
 
 #### **Implicit Channel (Shorthand)**
 Concur provides a convenient shorthand that creates and returns a channel for you.
+By default, `Go<T>` uses `DefaultChannel<T>`, but you can supply `channelFactory` to choose a different implementation.
 
 ```csharp
 // Go<T> creates and returns a readable channel.
@@ -117,8 +118,37 @@ await foreach (var number in numbers)
 }
 ```
 
+For bounded workloads, pick the channel that matches your reader pattern:
+
+```csharp
+// Many producers, one consumer.
+var singleReaderNumbers = Go<int>(
+    async writer =>
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            await writer.WriteAsync(i);
+        }
+        await writer.CompleteAsync();
+    },
+    channelFactory: () => new MpscBoundedChannel<int>(capacity: 64));
+
+// Many producers, many consumers.
+var multiReaderNumbers = Go<int>(
+    async writer =>
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            await writer.WriteAsync(i);
+        }
+        await writer.CompleteAsync();
+    },
+    channelFactory: () => new MpmcBoundedChannel<int>(capacity: 64, shardCount: 4));
+```
+
 #### **Bounded Channels**
 By default, channels are unbounded. You can specify a capacity to create a bounded channel. A producer writing to a full bounded channel will block asynchronously until a consumer makes space.
+Use `MpscBoundedChannel<T>` when you have one consumer, and `MpmcBoundedChannel<T>` when multiple consumers will compete for work.
 
 ```csharp
 // Create a channel that can only hold 2 items at a time.
