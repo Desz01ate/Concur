@@ -210,6 +210,29 @@ Console.WriteLine("\nAll background jobs have completed!");
 Console.WriteLine($"Results: {results[0]}, {results[1]}, {results[2]}");
 ```
 
+### 3. Propagating Cancellation with `Context`
+
+Use `Context` when multiple goroutines, channels, and waits should share one operation lifetime.
+
+```csharp
+using var request = Context.Background.WithTimeout(TimeSpan.FromSeconds(10), "fetch-users");
+var wg = new WaitGroup();
+
+Go(wg, async () =>
+{
+    await Task.Delay(100, request.CancellationToken);
+}, new GoOptions
+{
+    Context = request,
+    OperationName = "fetch-users-worker",
+});
+
+await wg.WaitAsync(request.CancellationToken);
+```
+
+`Context` cancels children when a parent is canceled. Concur treats a matching `OperationCanceledException`
+as cooperative cancellation instead of routing it through the exception handler.
+
 ---
 
 ## ⚠️ Error Handling
