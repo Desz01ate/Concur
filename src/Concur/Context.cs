@@ -10,6 +10,7 @@ public sealed class Context : IDisposable
     private readonly CancellationTokenSource cts;
     private readonly bool canCancel;
     private CancellationTokenRegistration parentRegistration;
+    private List<CancellationTokenRegistration>? linkedTokenRegistrations;
     private Timer? deadlineTimer;
     private int disposeState;
     private Exception? cancellationCause;
@@ -69,7 +70,40 @@ public sealed class Context : IDisposable
     /// <returns>A new linked child context.</returns>
     public Context CreateChild(string? operationName = null)
     {
-        return CreateLinkedContext(this, operationName, deadline: null, dueTime: null);
+        return this.WithCancel(operationName);
+    }
+
+    /// <summary>
+    /// Creates a cancellable child context linked to this context.
+    /// </summary>
+    /// <param name="operationName">The child operation name.</param>
+    /// <returns>A new linked child context.</returns>
+    public Context WithCancel(string? operationName = null)
+    {
+        return CreateLinkedContext(this, operationName, deadline: null, dueTime: null, linkedTokens: null);
+    }
+
+    /// <summary>
+    /// Creates a cancellable child context linked to this context and an external cancellation token.
+    /// </summary>
+    /// <param name="cancellationToken">The external cancellation token to link.</param>
+    /// <param name="operationName">The child operation name.</param>
+    /// <returns>A new linked child context.</returns>
+    public Context WithCancel(CancellationToken cancellationToken, string? operationName = null)
+    {
+        return CreateLinkedContext(this, operationName, deadline: null, dueTime: null, linkedTokens: new[] { cancellationToken });
+    }
+
+    /// <summary>
+    /// Creates a cancellable child context linked to this context and all external cancellation tokens.
+    /// </summary>
+    /// <param name="cancellationTokens">The external cancellation tokens to link.</param>
+    /// <param name="operationName">The child operation name.</param>
+    /// <returns>A new linked child context.</returns>
+    public Context WithCancel(IEnumerable<CancellationToken> cancellationTokens, string? operationName = null)
+    {
+        ArgumentNullException.ThrowIfNull(cancellationTokens);
+        return CreateLinkedContext(this, operationName, deadline: null, dueTime: null, linkedTokens: cancellationTokens);
     }
 
     /// <summary>
@@ -86,7 +120,7 @@ public sealed class Context : IDisposable
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
-        return CreateLinkedContext(this, operationName, DateTimeOffset.UtcNow.Add(timeout), timeout);
+        return CreateLinkedContext(this, operationName, DateTimeOffset.UtcNow.Add(timeout), timeout, linkedTokens: null);
     }
 
     /// <summary>
@@ -103,7 +137,7 @@ public sealed class Context : IDisposable
             dueTime = TimeSpan.Zero;
         }
 
-        return CreateLinkedContext(this, operationName, deadline, dueTime);
+        return CreateLinkedContext(this, operationName, deadline, dueTime, linkedTokens: null);
     }
 
     /// <summary>
@@ -144,6 +178,14 @@ public sealed class Context : IDisposable
 
         this.deadlineTimer?.Dispose();
         this.parentRegistration.Dispose();
+        
+        if (this.linkedTokenRegistrations is { } registrations)
+        {
+            foreach (var registration in registrations)
+            {
+                registration.Dispose();
+            }
+        }
 
         if (!ReferenceEquals(this, Background))
         {
@@ -155,7 +197,8 @@ public sealed class Context : IDisposable
         Context parent,
         string? operationName,
         DateTimeOffset? deadline,
-        TimeSpan? dueTime)
+        TimeSpan? dueTime,
+        IEnumerable<CancellationToken>? linkedTokens)
     {
         var child = new Context(parent, operationName, deadline, canCancel: true);
 
@@ -166,6 +209,30 @@ public sealed class Context : IDisposable
             var cause = parentCause ?? new OperationCanceledException(context.Parent?.CancellationToken ?? CancellationToken.None);
             context.TryCancel(cause);
         }, child);
+
+        if (linkedTokens is not null)
+        {
+            foreach (var linkedToken in linkedTokens)
+            {
+                if (!linkedToken.CanBeCanceled)
+                {
+                    continue;
+                }
+
+                if (linkedToken.IsCancellationRequested)
+                {
+                    child.TryCancel(new OperationCanceledException(linkedToken));
+                    continue;
+                }
+
+                child.linkedTokenRegistrations ??= new List<CancellationTokenRegistration>();
+                child.linkedTokenRegistrations.Add(linkedToken.Register(static state =>
+                {
+                    var (context, cancellationToken) = ((Context Context, CancellationToken CancellationToken))state!;
+                    context.TryCancel(new OperationCanceledException(cancellationToken));
+                }, (child, linkedToken)));
+            }
+        }
 
         if (dueTime is { } value)
         {

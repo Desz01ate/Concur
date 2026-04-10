@@ -41,4 +41,60 @@ public class ContextTests
         Assert.True(context.CancellationToken.IsCancellationRequested);
         Assert.NotNull(context.Deadline);
     }
+
+    [Fact]
+    public void WithCancel_WithExternalToken_CancelsChild()
+    {
+        using var cts = new CancellationTokenSource();
+        using var context = Context.Background.WithCancel(cts.Token, "external");
+
+        cts.Cancel();
+
+        Assert.True(SpinWait.SpinUntil(() => context.IsCancellationRequested, TimeSpan.FromSeconds(1)));
+        var cause = Assert.IsType<OperationCanceledException>(context.CancellationCause);
+        Assert.Equal(cts.Token, cause.CancellationToken);
+    }
+
+    [Fact]
+    public void WithCancel_WithMultipleExternalTokens_CancelingAnyTokenCancelsChild()
+    {
+        using var first = new CancellationTokenSource();
+        using var second = new CancellationTokenSource();
+        using var context = Context.Background.WithCancel(new[] { first.Token, second.Token }, "multi");
+
+        second.Cancel();
+
+        Assert.True(SpinWait.SpinUntil(() => context.IsCancellationRequested, TimeSpan.FromSeconds(1)));
+        var cause = Assert.IsType<OperationCanceledException>(context.CancellationCause);
+        Assert.Equal(second.Token, cause.CancellationToken);
+    }
+
+    [Fact]
+    public void WithCancel_WithMultipleExternalTokens_FirstCancellationWins()
+    {
+        using var first = new CancellationTokenSource();
+        using var second = new CancellationTokenSource();
+        using var context = Context.Background.WithCancel(new[] { first.Token, second.Token }, "first-wins");
+
+        first.Cancel();
+        Assert.True(SpinWait.SpinUntil(() => context.IsCancellationRequested, TimeSpan.FromSeconds(1)));
+
+        second.Cancel();
+
+        var cause = Assert.IsType<OperationCanceledException>(context.CancellationCause);
+        Assert.Equal(first.Token, cause.CancellationToken);
+    }
+
+    [Fact]
+    public void WithCancel_WithPreCanceledToken_CancelsImmediately()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        using var context = Context.Background.WithCancel(cts.Token, "pre-canceled");
+
+        Assert.True(context.IsCancellationRequested);
+        var cause = Assert.IsType<OperationCanceledException>(context.CancellationCause);
+        Assert.Equal(cts.Token, cause.CancellationToken);
+    }
 }

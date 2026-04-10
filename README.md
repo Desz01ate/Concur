@@ -213,9 +213,10 @@ Console.WriteLine($"Results: {results[0]}, {results[1]}, {results[2]}");
 ### 3. Propagating Cancellation with `Context`
 
 Use `Context` when multiple goroutines, channels, and waits should share one operation lifetime.
+Link any external `CancellationToken` source directly with `WithCancel(...)` (for example ASP.NET request cancellation).
 
 ```csharp
-using var request = Context.Background.WithTimeout(TimeSpan.FromSeconds(10), "fetch-users");
+using var request = Context.Background.WithCancel(requestAborted, "fetch-users");
 var wg = new WaitGroup();
 
 Go(wg, async () =>
@@ -232,6 +233,14 @@ await wg.WaitAsync(request.CancellationToken);
 
 `Context` cancels children when a parent is canceled. Concur treats a matching `OperationCanceledException`
 as cooperative cancellation instead of routing it through the exception handler.
+
+You can also link multiple external sources:
+
+```csharp
+using var request = Context.Background.WithCancel(
+    new[] { requestAborted, appStoppingToken },
+    "fetch-users");
+```
 
 ---
 
