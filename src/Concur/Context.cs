@@ -91,7 +91,7 @@ public sealed class Context : IDisposable
     /// <returns>A new linked child context.</returns>
     public Context WithCancel(CancellationToken cancellationToken, string? operationName = null)
     {
-        return CreateLinkedContext(this, operationName, deadline: null, dueTime: null, linkedTokens: new[] { cancellationToken });
+        return CreateLinkedContext(this, operationName, deadline: null, dueTime: null, linkedTokens: [cancellationToken]);
     }
 
     /// <summary>
@@ -225,7 +225,7 @@ public sealed class Context : IDisposable
                     continue;
                 }
 
-                child.linkedTokenRegistrations ??= new List<CancellationTokenRegistration>();
+                child.linkedTokenRegistrations ??= [];
                 child.linkedTokenRegistrations.Add(linkedToken.Register(static state =>
                 {
                     var (context, cancellationToken) = ((Context Context, CancellationToken CancellationToken))state!;
