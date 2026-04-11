@@ -22,6 +22,11 @@ dotnet add package Concur
 
 ---
 
+## 🌐 ASP.NET Core Extension
+[Concur.Extensions.AspNetCore README](./src/Concur.Extensions.AspNetCore/README.md)
+
+---
+
 ## 🧠 Core Concepts
 Concur is built around three fundamental concepts from Go:
 - **Goroutine**: A lightweight, concurrent function. In Concur, you create one using the Go() method. It can be a synchronous action or an async task that runs in the background.

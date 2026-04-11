@@ -16,6 +16,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Concur.Tests", "Concur.Test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Concur.Benchmark", "Concur.Benchmark\Concur.Benchmark.csproj", "{36C59C53-80ED-485B-B515-4FA30EDFFC96}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Concur.Extensions.AspNetCore", "Concur.Extensions.AspNetCore\Concur.Extensions.AspNetCore.csproj", "{F28FB95C-1146-4222-92D8-DE7963F7D952}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Concur.Extensions.AspNetCore.Tests", "Concur.Extensions.AspNetCore.Tests\Concur.Extensions.AspNetCore.Tests.csproj", "{D093436F-7BEE-40F8-A9B4-6D0228B3F19F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -37,6 +41,14 @@ Global
 		{36C59C53-80ED-485B-B515-4FA30EDFFC96}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{36C59C53-80ED-485B-B515-4FA30EDFFC96}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{36C59C53-80ED-485B-B515-4FA30EDFFC96}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F28FB95C-1146-4222-92D8-DE7963F7D952}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F28FB95C-1146-4222-92D8-DE7963F7D952}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F28FB95C-1146-4222-92D8-DE7963F7D952}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F28FB95C-1146-4222-92D8-DE7963F7D952}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D093436F-7BEE-40F8-A9B4-6D0228B3F19F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D093436F-7BEE-40F8-A9B4-6D0228B3F19F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D093436F-7BEE-40F8-A9B4-6D0228B3F19F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D093436F-7BEE-40F8-A9B4-6D0228B3F19F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
