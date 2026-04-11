@@ -490,3 +490,6 @@ $RECYCLE.BIN/
 
 # Any markdown is ignored unless intentionally added.
 *.md
+
+.codex
+.omx/
