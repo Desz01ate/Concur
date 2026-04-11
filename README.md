@@ -22,6 +22,11 @@ dotnet add package Concur
 
 ---
 
+## 🌐 ASP.NET Core Extension
+[Concur.Extensions.AspNetCore README](./src/Concur.Extensions.AspNetCore/README.md)
+
+---
+
 ## 🧠 Core Concepts
 Concur is built around three fundamental concepts from Go:
 - **Goroutine**: A lightweight, concurrent function. In Concur, you create one using the Go() method. It can be a synchronous action or an async task that runs in the background.
@@ -208,6 +213,38 @@ await wg.WaitAsync();
 
 Console.WriteLine("\nAll background jobs have completed!");
 Console.WriteLine($"Results: {results[0]}, {results[1]}, {results[2]}");
+```
+
+### 3. Propagating Cancellation with `Context`
+
+Use `Context` when multiple goroutines, channels, and waits should share one operation lifetime.
+Link any external `CancellationToken` source directly with `WithCancel(...)` (for example ASP.NET request cancellation).
+
+```csharp
+using var request = Context.Background.WithCancel(requestAborted, "fetch-users");
+var wg = new WaitGroup();
+
+Go(wg, async () =>
+{
+    await Task.Delay(100, request.CancellationToken);
+}, new GoOptions
+{
+    Context = request,
+    OperationName = "fetch-users-worker",
+});
+
+await wg.WaitAsync(request.CancellationToken);
+```
+
+`Context` cancels children when a parent is canceled. Concur treats a matching `OperationCanceledException`
+as cooperative cancellation instead of routing it through the exception handler.
+
+You can also link multiple external sources:
+
+```csharp
+using var request = Context.Background.WithCancel(
+    new[] { requestAborted, appStoppingToken },
+    "fetch-users");
 ```
 
 ---

@@ -21,6 +21,11 @@ public sealed class GoOptions
     public string? OperationName { get; init; }
 
     /// <summary>
+    /// Optional operation context used for cancellation propagation.
+    /// </summary>
+    public Context? Context { get; init; }
+
+    /// <summary>
     /// Additional metadata to include with the exception context.
     /// </summary>
     public IReadOnlyDictionary<string, object?> Metadata { get; init; } =

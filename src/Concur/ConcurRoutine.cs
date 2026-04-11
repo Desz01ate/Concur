@@ -1,6 +1,7 @@
 namespace Concur;
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Abstractions;
 using Contexts;
@@ -50,6 +51,58 @@ public static class ConcurRoutine
     /// <returns>A unique string identifier.</returns>
     private static string GenerateRoutineId() => Guid.NewGuid().ToString("N")[..8];
 
+    private static CancellationToken GetCancellationToken(GoOptions? options)
+    {
+        return options?.Context?.CancellationToken ?? CancellationToken.None;
+    }
+
+    private static bool IsCooperativeCancellation(Exception exception, GoOptions? options)
+    {
+        if (exception is not OperationCanceledException operationCanceledException)
+        {
+            return false;
+        }
+
+        var token = options?.Context?.CancellationToken;
+        return token is { } contextToken
+            && contextToken.CanBeCanceled
+            && operationCanceledException.CancellationToken == contextToken;
+    }
+
+    private static async ValueTask<bool> TryAcquireSemaphoreAsync(SemaphoreSlim? semaphore, GoOptions? options)
+    {
+        var cancellationToken = GetCancellationToken(options);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        if (semaphore is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            await semaphore.WaitAsync(cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
+    private static async ValueTask HandleRoutineFailureAsync(Exception exception, string routineId, GoOptions? options)
+    {
+        if (IsCooperativeCancellation(exception, options))
+        {
+            return;
+        }
+
+        await HandleExceptionAsync(exception, routineId, options);
+    }
+
     /// <summary>
     /// Runs a fire-and-forget synchronous action on a background thread.
     /// </summary>
@@ -61,7 +114,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -69,11 +126,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -90,7 +150,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -98,11 +162,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -126,7 +193,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -134,12 +205,21 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
+                if (IsCooperativeCancellation(e, options))
+                {
+                    await channel.FailAsync(new OperationCanceledException(GetCancellationToken(options)));
+                    return;
+                }
+
                 await channel.FailAsync(e);
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
 
@@ -168,7 +248,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -176,12 +261,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -206,7 +294,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -214,12 +307,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -240,7 +336,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -248,11 +348,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -270,7 +373,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -278,11 +385,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -301,7 +411,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -309,11 +423,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -333,7 +450,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -341,11 +462,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -366,7 +490,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -374,11 +502,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -400,7 +531,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -408,11 +543,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -435,7 +573,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -443,11 +585,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -471,7 +616,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -479,11 +628,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -505,7 +657,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -513,11 +669,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -536,7 +695,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -544,11 +707,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -568,7 +734,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -576,11 +746,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -601,7 +774,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -609,11 +786,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -635,7 +815,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -643,11 +827,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -670,7 +857,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -678,11 +869,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -706,7 +900,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -714,11 +912,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -743,7 +944,11 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                return;
+            }
 
             try
             {
@@ -751,11 +956,14 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -779,7 +987,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -787,12 +1000,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -813,7 +1029,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -821,12 +1042,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -848,7 +1072,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -856,12 +1085,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -884,7 +1116,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -892,12 +1129,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -921,7 +1161,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -929,12 +1174,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -959,7 +1207,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -967,12 +1220,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -998,7 +1254,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1006,12 +1267,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1038,7 +1302,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1046,12 +1315,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1081,7 +1353,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1089,12 +1366,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1121,7 +1401,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1129,12 +1414,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1162,7 +1450,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1170,12 +1463,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1204,7 +1500,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1212,12 +1513,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1247,7 +1551,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1255,12 +1564,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1291,7 +1603,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1299,12 +1616,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1336,7 +1656,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1344,12 +1669,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }
@@ -1393,7 +1721,12 @@ public static class ConcurRoutine
 
         _ = Task.Run(async () =>
         {
-            if (semaphore is not null) await semaphore.WaitAsync();
+            var enteredSemaphore = await TryAcquireSemaphoreAsync(semaphore, options);
+            if (!enteredSemaphore)
+            {
+                wg.Done();
+                return;
+            }
 
             try
             {
@@ -1401,12 +1734,15 @@ public static class ConcurRoutine
             }
             catch (Exception e)
             {
-                await HandleExceptionAsync(e, GenerateRoutineId(), options);
+                await HandleRoutineFailureAsync(e, GenerateRoutineId(), options);
             }
             finally
             {
                 wg.Done();
-                semaphore?.Release();
+                if (enteredSemaphore)
+                {
+                    semaphore!.Release();
+                }
             }
         });
     }

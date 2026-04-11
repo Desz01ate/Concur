@@ -97,16 +97,37 @@ public sealed class WaitGroup
     /// <summary>
     /// Blocks until the WaitGroup counter is zero asynchronously.
     /// </summary>
-    public Task WaitAsync()
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task WaitAsync(CancellationToken cancellationToken = default)
     {
-        return this.state.Tcs.Task;
+        var task = this.state.Tcs.Task;
+
+        if (!cancellationToken.CanBeCanceled || task.IsCompleted)
+        {
+            return task;
+        }
+
+        return WaitAsyncCore(task, cancellationToken);
     }
 
     /// <summary>
     /// Blocks until the WaitGroup counter is zero.
     /// </summary>
-    public void Wait()
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public void Wait(CancellationToken cancellationToken = default)
     {
-        this.state.Tcs.Task.GetAwaiter().GetResult();
+        this.WaitAsync(cancellationToken).GetAwaiter().GetResult();
     }
+    private static async Task WaitAsyncCore(Task task, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await task.WaitAsync(cancellationToken);
+        }
+        catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
+    }
+
 }

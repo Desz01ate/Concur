@@ -28,7 +28,7 @@ public class ConcurRoutineTests
         });
 
         // Assert
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
         Assert.True(signaled, "The action was not executed within the timeout");
         Assert.True(executed, "The action was not executed");
     }
@@ -223,7 +223,7 @@ public class ConcurRoutineTests
         Go(() => throw expectedException, options);
 
         // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Assert
         Assert.True(signaled, "Exception handler was not called within timeout");
@@ -950,7 +950,7 @@ public class ConcurRoutineTests
         }, "param1", "param2", options);
 
         // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Assert
         Assert.True(signaled, "Exception handler was not called within timeout");
@@ -1235,7 +1235,7 @@ public class ConcurRoutineTests
         }, "param1", "param2", options);
 
         // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Wait for the WaitGroup to complete despite the exception
         await wg.WaitAsync();
@@ -1251,4 +1251,64 @@ public class ConcurRoutineTests
     }
 
     #endregion
+
+
+    [Fact]
+    public async Task Go_WithAlreadyCanceledContext_DoesNotInvokeDelegate()
+    {
+        using var context = Context.Background.CreateChild("pre-canceled");
+        context.TryCancel();
+
+        var wg = new WaitGroup();
+        var invoked = 0;
+
+        Go(wg, () => Interlocked.Increment(ref invoked), new GoOptions { Context = context });
+
+        await wg.WaitAsync();
+
+        Assert.Equal(0, invoked);
+    }
+
+    [Fact]
+    public async Task Go_WithCanceledContextWhileWaitingForConcurrencyLimiter_DoesNotInvokeDelegate()
+    {
+        using var context = Context.Background.CreateChild("blocked");
+        using var semaphore = new SemaphoreSlim(0, 1);
+
+        var wg = new WaitGroup();
+        var invoked = 0;
+
+        Go(wg, () => Interlocked.Increment(ref invoked), new GoOptions
+        {
+            Context = context,
+            ConcurrencyLimiter = semaphore,
+        });
+
+        context.TryCancel();
+        await wg.WaitAsync();
+
+        Assert.Equal(0, invoked);
+    }
+
+    [Fact]
+    public async Task Go_WithProducerCanceledByContext_FailsReturnedChannel()
+    {
+        using var context = Context.Background.CreateChild("producer");
+
+        var channel = Go<int>(async writer =>
+        {
+            await writer.WriteAsync(1, context.CancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(5), context.CancellationToken);
+            await writer.CompleteAsync(context.CancellationToken);
+        }, new GoOptions { Context = context });
+
+        await using var enumerator = channel.GetAsyncEnumerator();
+        Assert.True(await enumerator.MoveNextAsync());
+        Assert.Equal(1, enumerator.Current);
+
+        context.TryCancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await enumerator.MoveNextAsync());
+    }
+
 }

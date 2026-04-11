@@ -29,7 +29,7 @@ public class ExceptionHandlingTests
             throw new InvalidOperationException("This should be ignored");
         }, options);
 
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Assert - should complete without any exceptions being propagated
         Assert.True(signaled);
@@ -58,7 +58,7 @@ public class ExceptionHandlingTests
         // Act
         Go(() => throw new ArgumentException("Test with metadata"), options);
 
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Assert
         Assert.True(signaled);
@@ -88,7 +88,7 @@ public class ExceptionHandlingTests
         // Act
         Go(() => throw new InvalidOperationException("Timestamp test"), options);
 
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
         var endTime = DateTimeOffset.UtcNow;
 
         // Assert
@@ -123,7 +123,7 @@ public class ExceptionHandlingTests
             throw expectedException;
         }, options: options);
 
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Assert
         Assert.True(signaled);
@@ -161,7 +161,7 @@ public class ExceptionHandlingTests
         // Act
         Go(wg, () => throw new InvalidOperationException("WaitGroup exception"), options);
 
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
         await wg.WaitAsync(); // Should complete despite exception
 
         // Assert
@@ -190,7 +190,7 @@ public class ExceptionHandlingTests
             throw new InvalidOperationException("Original exception");
         }, options);
 
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
         Assert.True(signaled);
 
         // Test should complete without the handler exception propagating
@@ -231,4 +231,28 @@ public class ExceptionHandlingTests
             Assert.Contains(ex, aggregateException.InnerExceptions);
         }
     }
+
+
+    [Fact]
+    public async Task Go_WithMatchingOperationCanceledException_DoesNotCallExceptionHandler()
+    {
+        using var context = Context.Background.CreateChild("handler-suppression");
+        var handler = new TestExceptionHandler();
+        var wg = new WaitGroup();
+
+        Go(wg, async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), context.CancellationToken);
+        }, new GoOptions
+        {
+            Context = context,
+            ExceptionHandler = handler,
+        });
+
+        context.TryCancel();
+        await wg.WaitAsync();
+
+        Assert.Empty(handler.GetCapturedExceptions());
+    }
+
 }

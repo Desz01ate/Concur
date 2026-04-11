@@ -4,17 +4,25 @@
     <TargetFramework>$(FrameworkVersion)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.5.0</Version>
+    <Version>1.6.0-beta-001</Version>
     <Description>A lightweight C# library providing Go-inspired concurrency patterns for .NET applications.</Description>
     <PackageProjectUrl>https://github.com/Desz01ate/Concur</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Desz01ate/Concur</RepositoryUrl>
     <PackageReleaseNotes><![CDATA[
-## What's New in 1.5.0
+## What's New in 1.6.0-beta-001
 
 ### Features
-- Added `Go<T>` channel factory support so callers can choose the concrete `IChannel<T>` implementation
-- Added `MpscBoundedChannel<T>` for bounded multi-producer, single-consumer workloads
-- Added `MpmcBoundedChannel<T>` for bounded multi-producer, multi-consumer workloads
+- Added native ASP.NET Core `Context` integration via the new `Concur.Extensions.AspNetCore` package
+- Added `Context` cancellation propagation through goroutine scheduling and WaitGroup waits
+- Enhanced `WithCancel` methods to support external token linking for better cancellation control
+
+### Improvements
+- Improved XML documentation coverage for all public APIs
+- Hardened test timeouts for better reliability in thread-pool dependent tests
+- Enhanced cancellation semantics for operation-scoped contexts
+
+### Bug Fixes
+- Replaced `SemaphoreSlim` with custom `AsyncCounterGate` in `MpmcBoundedChannel` for improved flexibility and performance
     ]]></PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
