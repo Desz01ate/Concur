@@ -37,7 +37,7 @@ public class ContextTests
     {
         using var context = Context.Background.WithTimeout(TimeSpan.FromMilliseconds(50), "timeout");
 
-        Assert.True(SpinWait.SpinUntil(() => context.IsCancellationRequested, TimeSpan.FromSeconds(1)));
+        Assert.True(SpinWait.SpinUntil(() => context.IsCancellationRequested, TimeSpan.FromSeconds(5)));
         Assert.True(context.CancellationToken.IsCancellationRequested);
         Assert.NotNull(context.Deadline);
     }

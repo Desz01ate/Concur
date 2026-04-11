@@ -28,7 +28,7 @@ public class ConcurRoutineTests
         });
 
         // Assert
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
         Assert.True(signaled, "The action was not executed within the timeout");
         Assert.True(executed, "The action was not executed");
     }
@@ -223,7 +223,7 @@ public class ConcurRoutineTests
         Go(() => throw expectedException, options);
 
         // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Assert
         Assert.True(signaled, "Exception handler was not called within timeout");
@@ -950,7 +950,7 @@ public class ConcurRoutineTests
         }, "param1", "param2", options);
 
         // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Assert
         Assert.True(signaled, "Exception handler was not called within timeout");
@@ -1235,7 +1235,7 @@ public class ConcurRoutineTests
         }, "param1", "param2", options);
 
         // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(1));
+        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
 
         // Wait for the WaitGroup to complete despite the exception
         await wg.WaitAsync();

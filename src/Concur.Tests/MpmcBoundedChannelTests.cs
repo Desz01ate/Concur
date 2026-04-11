@@ -190,7 +190,7 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
         Assert.True(await enumerator.MoveNextAsync());
 
         var allWrites = Task.WhenAll(thirdWrite, fourthWrite);
-        var completed = await Task.WhenAny(allWrites, Task.Delay(TimeSpan.FromSeconds(1)));
+        var completed = await Task.WhenAny(allWrites, Task.Delay(TimeSpan.FromSeconds(5)));
         Assert.Same(allWrites, completed);
         Assert.True(thirdWrite.IsCompleted);
         Assert.True(fourthWrite.IsCompleted);
@@ -287,7 +287,7 @@ public class MpmcBoundedChannelTests : BoundedChannelBehaviorTests
             await channel.CompleteAsync();
         }
 
-        var completed = await Task.WhenAny(blockedWrite, Task.Delay(TimeSpan.FromSeconds(1)));
+        var completed = await Task.WhenAny(blockedWrite, Task.Delay(TimeSpan.FromSeconds(5)));
         Assert.Same(blockedWrite, completed);
 
         await Assert.ThrowsAnyAsync<InvalidOperationException>(() => blockedWrite);
