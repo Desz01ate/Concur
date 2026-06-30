@@ -30,7 +30,7 @@ public abstract class BoundedChannelBehaviorTests
                     await ch.WriteAsync(value);
                 }
 
-                await ch.CompleteAsync();
+                await ch.CloseAsync();
             },
             channelFactory: () => this.CreateChannel(capacity: 16));
 
@@ -58,7 +58,7 @@ public abstract class BoundedChannelBehaviorTests
         Assert.Equal(1, first);
 
         await secondWrite;
-        await channel.CompleteAsync();
+        await channel.CloseAsync();
 
         var remaining = await channel.ToListAsync();
         Assert.Single(remaining);
@@ -85,7 +85,7 @@ public abstract class BoundedChannelBehaviorTests
                                   });
 
         await Task.WhenAll(producers);
-        await channel.CompleteAsync();
+        await channel.CloseAsync();
 
         // Assert
         var items = await collectorTask;
@@ -115,13 +115,13 @@ public abstract class BoundedChannelBehaviorTests
     }
 
     [Fact]
-    public async Task CompleteAsync_EmptyChannel_EnumerationStopsImmediately()
+    public async Task CloseAsync_EmptyChannel_EnumerationStopsImmediately()
     {
         // Arrange
         var channel = this.CreateChannel(capacity: 8);
 
         // Act
-        await channel.CompleteAsync();
+        await channel.CloseAsync();
         var items = await channel.ToListAsync();
 
         // Assert
@@ -129,7 +129,7 @@ public abstract class BoundedChannelBehaviorTests
     }
 
     [Fact]
-    public async Task CompleteAsync_AllBufferedItemsDrainedBeforeEnumerationStops()
+    public async Task CloseAsync_AllBufferedItemsDrainedBeforeEnumerationStops()
     {
         // Arrange
         var channel = this.CreateChannel(capacity: 16);
@@ -140,7 +140,7 @@ public abstract class BoundedChannelBehaviorTests
             await channel.WriteAsync(v);
         }
 
-        await channel.CompleteAsync();
+        await channel.CloseAsync();
 
         // Act
         var collected = await channel.ToListAsync();
@@ -151,11 +151,11 @@ public abstract class BoundedChannelBehaviorTests
     }
 
     [Fact]
-    public async Task WriteAsync_AfterCompleteAsync_ThrowsInvalidOperationException()
+    public async Task WriteAsync_AfterCloseAsync_ThrowsInvalidOperationException()
     {
         // Arrange
         var channel = this.CreateChannel(capacity: 8);
-        await channel.CompleteAsync();
+        await channel.CloseAsync();
 
         // Act & Assert
         await Assert.ThrowsAnyAsync<InvalidOperationException>(() => channel.WriteAsync(1).AsTask());

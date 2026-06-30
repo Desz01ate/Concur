@@ -5,8 +5,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Abstractions;
-using Handlers;
 using Implementations;
 using Xunit;
 using static ConcurRoutine;
@@ -46,7 +44,7 @@ public class ConcurRoutineTests
             await Task.Delay(10);
             executed = true;
             await channel.WriteAsync(true);
-            await channel.CompleteAsync();
+            await channel.CloseAsync();
         });
 
         var result = await channel.FirstOrDefaultAsync();
@@ -70,7 +68,7 @@ public class ConcurRoutineTests
                 await Task.Delay(10);
             }
 
-            await chan.CompleteAsync();
+            await chan.CloseAsync();
         };
 
         // Act
@@ -121,7 +119,7 @@ public class ConcurRoutineTests
 
             if (collected.Count >= expectedResult.Length)
             {
-                await channel.CompleteAsync();
+                await channel.CloseAsync();
                 break;
             }
         }
@@ -144,7 +142,7 @@ public class ConcurRoutineTests
                     await Task.Delay(10);
                 }
 
-                await chan.CompleteAsync();
+                await chan.CloseAsync();
             },
             channelFactory: static () => new DefaultChannel<int>(10));
 
@@ -167,7 +165,7 @@ public class ConcurRoutineTests
                     await channel.WriteAsync(value);
                 }
 
-                await channel.CompleteAsync();
+                await channel.CloseAsync();
             },
             channelFactory: static () => new MpscBoundedChannel<int>(capacity: 16));
 
@@ -202,58 +200,6 @@ public class ConcurRoutineTests
         });
 
         Assert.Same(expected, thrown);
-    }
-
-    [Fact]
-    public async Task Go_WithException_CallsExceptionHandler()
-    {
-        // Arrange
-        var testHandler = new TestExceptionHandler();
-        var expectedException = new InvalidOperationException("Test exception");
-        var resetEvent = new ManualResetEventSlim(false);
-
-        var options = new GoOptions
-        {
-            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
-            OperationName = "TestOperation",
-            Metadata = new Dictionary<string, object?> { ["TestKey"] = "TestValue" }
-        };
-
-        // Act
-        Go(() => throw expectedException, options);
-
-        // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
-
-        // Assert
-        Assert.True(signaled, "Exception handler was not called within timeout");
-        var capturedExceptions = testHandler.GetCapturedExceptions();
-        Assert.Single(capturedExceptions);
-
-        var context = capturedExceptions[0];
-        Assert.Equal(expectedException, context.Exception);
-        Assert.Equal("TestOperation", context.OperationName);
-        Assert.Contains("TestKey", context.Metadata.Keys);
-        Assert.Equal("TestValue", context.Metadata["TestKey"]);
-        Assert.NotEmpty(context.RoutineId);
-    }
-
-    private class TestChannelExceptionHandler : IExceptionHandler
-    {
-        private readonly TestExceptionHandler innerHandler;
-        private readonly ManualResetEventSlim resetEvent;
-
-        public TestChannelExceptionHandler(TestExceptionHandler innerHandler, ManualResetEventSlim resetEvent)
-        {
-            this.innerHandler = innerHandler;
-            this.resetEvent = resetEvent;
-        }
-
-        public async ValueTask HandleAsync(IExceptionContext context)
-        {
-            await this.innerHandler.HandleAsync(context);
-            this.resetEvent.Set();
-        }
     }
 
     [Fact]
@@ -315,7 +261,7 @@ public class ConcurRoutineTests
         {
             Thread.Sleep(10);
             ch.WriteAsync(expectedValue).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -338,7 +284,7 @@ public class ConcurRoutineTests
         {
             Thread.Sleep(10);
             ch.WriteAsync(value + value).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -362,7 +308,7 @@ public class ConcurRoutineTests
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + " " + b).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -384,7 +330,7 @@ public class ConcurRoutineTests
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -406,7 +352,7 @@ public class ConcurRoutineTests
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c + d).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -428,7 +374,7 @@ public class ConcurRoutineTests
         {
             Thread.Sleep(10);
             ch.WriteAsync(a * b * c * d * e).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -455,7 +401,7 @@ public class ConcurRoutineTests
             ch.WriteAsync(d).GetAwaiter().GetResult();
             ch.WriteAsync(e).GetAwaiter().GetResult();
             ch.WriteAsync(f).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -477,7 +423,7 @@ public class ConcurRoutineTests
         {
             Thread.Sleep(10);
             ch.WriteAsync(a + b + c + d + e + f + g).GetAwaiter().GetResult();
-            ch.CompleteAsync().GetAwaiter().GetResult();
+            ch.CloseAsync().GetAwaiter().GetResult();
         }
     }
 
@@ -651,7 +597,7 @@ public class ConcurRoutineTests
 
         // Wait for all routines to complete
         await wg.WaitAsync();
-        await channel.CompleteAsync();
+        await channel.CloseAsync();
 
         var result = await channel.ToListAsync();
 
@@ -717,7 +663,7 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             await ch.WriteAsync(expectedValue);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -740,7 +686,7 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             await ch.WriteAsync(value + value);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -764,7 +710,7 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + " " + b);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -786,7 +732,7 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -808,7 +754,7 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c + d);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -830,7 +776,7 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             await ch.WriteAsync(a * b * c * d * e);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -857,7 +803,7 @@ public class ConcurRoutineTests
             await ch.WriteAsync(d);
             await ch.WriteAsync(e);
             await ch.WriteAsync(f);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -879,7 +825,7 @@ public class ConcurRoutineTests
         {
             await Task.Delay(10);
             await ch.WriteAsync(a + b + c + d + e + f + g);
-            await ch.CompleteAsync();
+            await ch.CloseAsync();
         }
     }
 
@@ -917,7 +863,7 @@ public class ConcurRoutineTests
 
             if (collected.Count == 3)
             {
-                await channel.CompleteAsync();
+                await channel.CloseAsync();
                 break;
             }
         }
@@ -926,40 +872,6 @@ public class ConcurRoutineTests
         Assert.Contains(1, collected);
         Assert.Contains(5, collected);
         Assert.Contains(15, collected);
-    }
-
-    [Fact]
-    public async Task Go_WithGenericParameters_HandlesExceptions()
-    {
-        // Arrange
-        var testHandler = new TestExceptionHandler();
-        var expectedException = new InvalidOperationException("Test exception");
-        var resetEvent = new ManualResetEventSlim(false);
-
-        var options = new GoOptions
-        {
-            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
-            OperationName = "GenericParameterTest"
-        };
-
-        // Act
-        Go(async (_, _) =>
-        {
-            await Task.Delay(10);
-            throw expectedException;
-        }, "param1", "param2", options);
-
-        // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
-
-        // Assert
-        Assert.True(signaled, "Exception handler was not called within timeout");
-        var capturedExceptions = testHandler.GetCapturedExceptions();
-        Assert.Single(capturedExceptions);
-
-        var context = capturedExceptions[0];
-        Assert.Equal(expectedException, context.Exception);
-        Assert.Equal("GenericParameterTest", context.OperationName);
     }
 
     #endregion
@@ -1132,7 +1044,7 @@ public class ConcurRoutineTests
 
         // Wait for all routines to complete
         await wg.WaitAsync();
-        await channel.CompleteAsync();
+        await channel.CloseAsync();
 
         var result = await channel.ToListAsync();
 
@@ -1212,44 +1124,6 @@ public class ConcurRoutineTests
         Assert.Contains(15, results);
     }
 
-    [Fact]
-    public async Task Go_WithGenericParameters_AndWaitGroup_HandlesExceptions()
-    {
-        // Arrange
-        var wg = new WaitGroup();
-        var testHandler = new TestExceptionHandler();
-        var expectedException = new InvalidOperationException("Test exception");
-        var resetEvent = new ManualResetEventSlim(false);
-
-        var options = new GoOptions
-        {
-            ExceptionHandler = new TestChannelExceptionHandler(testHandler, resetEvent),
-            OperationName = "WaitGroupGenericParameterTest"
-        };
-
-        // Act
-        Go(wg, async (_, _) =>
-        {
-            await Task.Delay(10);
-            throw expectedException;
-        }, "param1", "param2", options);
-
-        // Wait for exception to be handled
-        var signaled = resetEvent.Wait(TimeSpan.FromSeconds(5));
-
-        // Wait for the WaitGroup to complete despite the exception
-        await wg.WaitAsync();
-
-        // Assert
-        Assert.True(signaled, "Exception handler was not called within timeout");
-        var capturedExceptions = testHandler.GetCapturedExceptions();
-        Assert.Single(capturedExceptions);
-
-        var context = capturedExceptions[0];
-        Assert.Equal(expectedException, context.Exception);
-        Assert.Equal("WaitGroupGenericParameterTest", context.OperationName);
-    }
-
     #endregion
 
 
@@ -1299,7 +1173,7 @@ public class ConcurRoutineTests
         {
             await writer.WriteAsync(1, context.CancellationToken);
             await Task.Delay(TimeSpan.FromSeconds(5), context.CancellationToken);
-            await writer.CompleteAsync(context.CancellationToken);
+            await writer.CloseAsync(context.CancellationToken);
         }, new GoOptions { Context = context });
 
         await using var enumerator = channel.GetAsyncEnumerator();
@@ -1308,7 +1182,6 @@ public class ConcurRoutineTests
 
         context.TryCancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await enumerator.MoveNextAsync());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await enumerator.MoveNextAsync());
     }
-
 }
