@@ -83,6 +83,20 @@ public sealed class QueueChannel<T> : IChannel<T>
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+    {
+        lock (this.lockObject)
+        {
+            if (!this.isCompleted)
+            {
+                this.isCompleted = true;
+                this.semaphore.Release(); // Signal any waiting readers
+            }
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
     /// <inheritdoc/>
     public ValueTask FailAsync(Exception ex, CancellationToken cancellationToken = default)
     {

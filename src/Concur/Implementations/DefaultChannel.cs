@@ -4,7 +4,7 @@ using System.Threading.Channels;
 using Abstractions;
 
 /// <summary>
-/// Provides a default implementation of the <see cref="IChannel{T, TSelf}"/> interface.
+/// Provides a default implementation of the <see cref="IChannel{T}"/> interface.
 /// This class uses the <see cref="System.Threading.Channels.Channel{T}"/> for its underlying implementation,
 /// supporting both bounded and unbounded channel behaviors.
 /// </summary>
@@ -69,6 +69,14 @@ public sealed class DefaultChannel<T> : IChannel<T>
 
     /// <inheritdoc/>
     public ValueTask CompleteAsync(CancellationToken cancellationToken = default)
+    {
+        this.channel.Writer.Complete();
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public ValueTask CloseAsync(CancellationToken cancellationToken = default)
     {
         this.channel.Writer.Complete();
 

@@ -22,7 +22,15 @@ public interface IChannel<T> : IAsyncEnumerable<T>
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous completion operation.</returns>
+    [Obsolete("Use CloseAsync instead", true)]
     ValueTask CompleteAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Closes the channel asynchronously, preventing further operations and releasing resources.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token to observe while waiting for the close operation to complete.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous close operation.</returns>
+    ValueTask CloseAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks the channel as faulted, propagating an exception to consumers.

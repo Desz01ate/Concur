@@ -123,6 +123,22 @@ public sealed class MpmcBoundedChannel<T> : IChannel<T>
         return ValueTask.CompletedTask;
     }
 
+    /// <inheritdoc/>
+    public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(
+                ref this.completionState,
+                CompletionStateCompleted,
+                CompletionStateOpen) != CompletionStateOpen)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        this.completionSignal.Cancel();
+        this.SignalDrainedIfCompleted();
+        return ValueTask.CompletedTask;
+    }
+
     /// <inheritdoc />
     public ValueTask FailAsync(Exception ex, CancellationToken cancellationToken = default)
     {

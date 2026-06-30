@@ -93,6 +93,23 @@ public sealed class MpscBoundedChannel<T> : IChannel<T>
     }
 
     /// <inheritdoc />
+    public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Exchange(ref this.completionState, 1) != 0)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        foreach (var stripe in this.stripes)
+        {
+            stripe.Writer.TryComplete();
+        }
+
+        this.availableItems.Release();
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
     public ValueTask FailAsync(Exception ex, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ex);
